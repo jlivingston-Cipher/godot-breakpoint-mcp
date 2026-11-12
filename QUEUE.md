@@ -21,8 +21,15 @@
 > available on a number nobody rechecks turned out to be deleting the place it could be
 > written.
 
+> `RELEASE_HEAD` names the session that cut the last release (BP-0084). The cutting
+> session sets it to its own number in the cut's PR; the session after it registers
+> that release's status block in `scripts/handoff_gate.py`. Sessions between two
+> releases register none, and `POPULATION_CURRENCY` refuses a cut that moved the
+> tree's versions without moving this marker.
+
 <!-- QUEUE_FORMAT 1 -->
 <!-- QUEUE_HEAD 341 -->
+<!-- RELEASE_HEAD 341 -->
 
 ## The table
 

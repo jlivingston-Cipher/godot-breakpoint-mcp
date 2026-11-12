@@ -13,6 +13,10 @@ on:
     branches: [ main ]
   pull_request:
   workflow_dispatch:
+  # 🆕 342 (BP-0084) — and weekly on `main`, so a quiet week still gets the full run,
+  # instrument sweep included, against whatever the registry serves that day.
+  schedule:
+    - cron: '23 10 * * 4'   # Thursdays 10:23 UTC
 
 jobs:
   contract-check:
@@ -761,7 +765,45 @@ jobs:
           grew (lint ceiling)
         shell: bash
         run: python3 ../scripts/lint_ceiling.py 2>&1 | tee -a "$CI_MEASURED_LOG"
+      # 🆕 342 (BP-0084, ruled 2026-11-11) — THE SWEEP RUNS ONCE, AND ON A PULL REQUEST ONLY
+      # WHEN THE PR REACHES WHAT IT TESTS. Measured at 342 on #447's run: `npm test` took
+      # under a minute on every leg and this step 21 to 35 (node 22 fastest, node 18
+      # slowest), so it set every wait at about fifty minutes, three times over. It blinds
+      # this repository's own checks to prove each one would catch a fault — a question
+      # about the checks and not about the Node version — so one leg answers it. It always
+      # runs on `main` (every merge, the weekly schedule, a dispatch), which is the run a
+      # release's status block is drafted from. On a PR it runs when the diff reaches a
+      # file it blinds or the toolchain and workflows those run under; a product-only change
+      # that somehow defeats it is caught by the run that follows the merge. An unreadable
+      # diff runs the sweep rather than skipping it.
+      - name: Decide whether this leg sweeps the instruments (BP-0084)
+        id: sweep
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          LEG: ${{ matrix.node }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          paths='^(scripts/|host/scripts/|host/test-integration/|host/(src|test)/path-cohort|host/package(-lock)?\.json$|host/tsconfig|\.github/workflows/)'
+          run=false
+          if [ "$LEG" != "22" ]; then
+            why="the sweep runs on the node 22 leg only"
+          elif [ "$EVENT" != "pull_request" ]; then
+            run=true; why="a $EVENT run always sweeps"
+          elif [ -z "$BASE" ] || ! git fetch --no-tags --depth=1 origin "$BASE" >/dev/null 2>&1; then
+            run=true; why="the PR's base could not be fetched, so its diff is unknown"
+          else
+            hits=$(git diff --name-only "$BASE" HEAD | grep -E "$paths" || true)
+            if [ -n "$hits" ]; then
+              run=true; why="the PR touches $(printf '%s\n' "$hits" | wc -l | tr -d ' ') file(s) the sweep tests, first $(printf '%s\n' "$hits" | head -1)"
+            else
+              why="the PR touches no file the sweep tests"
+            fi
+          fi
+          echo "instrument sweep: run=$run ($why)"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
       - name: Every JS instrument collapses loudly (instrument gate)
+        if: steps.sweep.outputs.run == 'true'
         shell: bash
         run: python3 ../scripts/instrument_gate.py 2>&1 | tee -a "$CI_MEASURED_LOG"
       # 🔴 AND THE LIVE TOOL-SURFACE BUDGET — 206 §4. Needs the dist/ the step above

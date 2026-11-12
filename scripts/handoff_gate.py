@@ -2032,8 +2032,32 @@ def shipped_predecessor(session: int,
     return n, stepped
 
 
+# ══ 🆕 342 — BP-0084 (B), RULED 2026-11-11: A BLOCK PER RELEASE, NOT PER SESSION ═══════
+#
+# 🔴 THE CONTIGUOUS RUN BELOW WAS THE PRICE OF EVERY MAINTENANCE SESSION'S FIRST ITEM.
+# Sessions 338 to 340 each spent their opening work recording the previous session's
+# block and waiting on the previous merge's full run, whether or not anything users
+# install had moved. From `BLOCK_PER_RELEASE_FROM` on, a block is owed by the session
+# that CUT A RELEASE, registered in the next session's PR; the sessions between two
+# releases owe none. `previous_main`, `version_interval` and `emit_handoff` all take the
+# last registered block BEFORE a session, so a release block measures `MOVED +N` and
+# `untagged` from the previous release's, which is what the ruling asked for; the table's
+# own readers already name a hole between two blocks (`gap`) rather than comparing across
+# it.
+#
+# 🔴 THE RELEASE IS TYPED ONCE, BESIDE THE HEAD, AND THE TREE CHECKS THE TYPING. The cut's
+# PR sets `<!-- RELEASE_HEAD N -->` in `QUEUE.md` to its own session. A cut that forgets
+# leaves the marker on the previous release, whose block then prints a host/addon pair the
+# tree no longer has, and that is refused in the cut's own PR. Nothing has to be
+# remembered that the version bump does not already force.
+BLOCK_PER_RELEASE_FROM = 342
+RELEASE_HEAD_RE = re.compile(r"<!--\s*RELEASE_HEAD\s+(\d+)\s*-->")
+
+
 def population_currency(head: "int | None" = None,
-                        population: "list[tuple[int, str]] | None" = None) -> "list[str]":
+                        population: "list[tuple[int, str]] | None" = None,
+                        release: "int | None" = None,
+                        tree: "tuple[str, str] | None" = None) -> "list[str]":
     """253's rule, DERIVED and enforced — every block a shipped session left behind is in
     `BLOCK_POPULATION` before this tree can call itself a later session.
 
@@ -2090,25 +2114,73 @@ def population_currency(head: "int | None" = None,
                 f"Either the head is unreadable or this is not a tree of this project — "
                 f"and an empty requirement derived from an unreadable number is a green "
                 f"that has checked nothing"]
-    need = [n for n in range(POPULATION_SHAPE_FROM, head)]
+    # 🆕 342 — the contiguous run ends where the per-release rule begins (BP-0084).
+    need = [n for n in range(POPULATION_SHAPE_FROM, min(head, BLOCK_PER_RELEASE_FROM))]
     # 🆕 289 — a session DECLARED to have shipped nothing owes no block; the declaration
     # is judged by `block_absent_problems`, which is where an undeclared hole stays a
     # refusal and a declared one stays somebody's typed sentence.
     absent = set(BLOCK_ABSENT)
     missing = [n for n in need if n not in have and n not in absent]
-    if not missing:
-        return []
-    newest = max(missing)
-    lead = (f"🔴 POPULATION_CURRENCY `QUEUE.md` says this tree is session {head}, so "
-            f"session {newest} has SHIPPED and its status block is not in "
-            f"`BLOCK_POPULATION`")
-    if len(missing) > 1:
-        lead += f" — nor are {len(missing) - 1} other(s): {missing[:-1]}"
-    return [lead + (". 253's rule: the previous block goes in THIS session's FIRST PR, "
-                    "before the replay. `previous_main` resolves by scanning backward "
-                    "from a session, so until it is there the close measures `MOVED +N` "
-                    "from the wrong endpoint and `git.moved` refuses — which is what 241, "
-                    "282 and 283 each paid a second PR and a full re-replay to discover.")]
+    out: "list[str]" = []
+    if missing:
+        newest = max(missing)
+        lead = (f"🔴 POPULATION_CURRENCY `QUEUE.md` says this tree is session {head}, so "
+                f"session {newest} has SHIPPED and its status block is not in "
+                f"`BLOCK_POPULATION`")
+        if len(missing) > 1:
+            lead += f" — nor are {len(missing) - 1} other(s): {missing[:-1]}"
+        out.append(lead + (". 253's rule: the previous block goes in THIS session's FIRST "
+                           "PR, before the replay. `previous_main` resolves by scanning "
+                           "backward from a session, so until it is there the close "
+                           "measures `MOVED +N` from the wrong endpoint and `git.moved` "
+                           "refuses — which is what 241, 282 and 283 each paid a second PR "
+                           "and a full re-replay to discover."))
+    if head < BLOCK_PER_RELEASE_FROM:
+        return out
+    # 🆕 342 — FROM HERE THE BLOCK OWED IS THE LAST RELEASE'S, AND ONLY ONCE ITS SESSION
+    # HAS ENDED. An unreadable release head is refused rather than read as "no release",
+    # for the reason the head's own refusal above gives: a requirement derived from a
+    # number nobody could read is a green that has checked nothing.
+    if release is None:
+        q = ROOT / "QUEUE.md"
+        m = RELEASE_HEAD_RE.search(q.read_text(encoding="utf-8")) if q.is_file() else None
+        release = int(m.group(1)) if m else 0
+    if release < POPULATION_SHAPE_FROM:
+        return out + [f"🔴 POPULATION_CURRENCY `QUEUE.md`'s `<!-- RELEASE_HEAD N -->` reads "
+                      f"{release}, which names no block this table can look up. From "
+                      f"{BLOCK_PER_RELEASE_FROM} a block is owed per release, so an "
+                      f"unreadable release head is a requirement derived from nothing — a "
+                      f"green that has checked nothing"]
+    if release > head:
+        return out + [f"🔴 POPULATION_CURRENCY `RELEASE_HEAD` names session {release} and "
+                      f"this tree calls itself session {head} — a release cannot have "
+                      f"been cut by a session that has not opened"]
+    if release == head or release in missing:
+        return out
+    hit = next((b for s, b in pop if s == release), None)
+    if hit is None:
+        return out + [f"🔴 POPULATION_CURRENCY `QUEUE.md` says this tree is session {head} "
+                      f"and the last release was cut by session {release}, so session "
+                      f"{release} has SHIPPED and its status block is not in "
+                      f"`BLOCK_POPULATION`. From {BLOCK_PER_RELEASE_FROM} a block is "
+                      f"recorded once per release (BP-0084): register it in this "
+                      f"session's PR, drafted with `--emit-handoff` from the release "
+                      f"merge's post-merge run."]
+    said, why = block_versions(status_block(hit)[0])
+    now, why_tree = (tree, "") if tree is not None else tree_versions()
+    if why or why_tree or not all(said) or not all(now):
+        return out + [f"🔴 POPULATION_CURRENCY session {release}'s block and the tree "
+                      f"cannot both be read for a host/addon pair "
+                      f"({why or why_tree or 'an empty version'}), so whether a later cut "
+                      f"went unrecorded cannot be decided"]
+    if said != now:
+        return out + [f"🔴 POPULATION_CURRENCY the tree is at {now[0]} / {now[1]} and "
+                      f"session {release}'s block, the release `RELEASE_HEAD` names, says "
+                      f"{said[0]} / {said[1]}. A cut since {release} has not moved "
+                      f"`<!-- RELEASE_HEAD N -->` in `QUEUE.md`: the cutting session sets "
+                      f"it to its own number in the cut's PR, and the next session "
+                      f"registers that block."]
+    return out
 
 
 # ── 🆕 306 §2 — `version-population-said-impossible` — THE SIGN AND THE PAIR ARE ONE ──
@@ -13960,7 +14032,9 @@ def selftest() -> int:
     # refused" would pass over a reader that reported the OLDEST gap, which is the answer
     # that reads as history rather than as this session's own first action.
     claims += 1
-    _newest = max(s for s, _ in BLOCK_POPULATION)
+    # 🆕 342 — the newest block BELOW the per-release rule, so this pair keeps pinning the
+    # contiguous half however the table grows above it; the release half is driven below.
+    _newest = max(s for s, _ in BLOCK_POPULATION if s < BLOCK_PER_RELEASE_FROM)
     _thinned = [(s, b) for s, b in BLOCK_POPULATION if s != _newest]
     _ctl = population_currency(head=_newest + 1, population=_thinned)
     if not _ctl or f"session {_newest} has SHIPPED" not in _ctl[0]:
@@ -13990,6 +14064,58 @@ def selftest() -> int:
         print(f"  🔴 POPULATION_CURRENCY_HEAD an unreadable head was turned into an EMPTY "
               f"requirement and reported clean, which is the reader going quiet rather "
               f"than the tree being right: {_blind[:1]}")
+
+    # ── 🆕 342 — BP-0084 (B): THE BLOCK OWED PER RELEASE, DRIVEN BOTH WAYS ──────────────
+    #
+    # 🔴 EVERY ARM ON ONE FIXTURE: a release session `_rel` above the whole live table,
+    # carrying the newest real block's text and so its real host/addon pair. A reader that
+    # refused every hole and a reader that skipped every release each fail one of these.
+    _rel = max(max(s for s, _ in BLOCK_POPULATION), BLOCK_PER_RELEASE_FROM) + 2
+    _rel_text = dict(BLOCK_POPULATION)[max(s for s, _ in BLOCK_POPULATION)]
+    _rel_pair = block_versions(status_block(_rel_text)[0])[0]
+    _with_rel = list(BLOCK_POPULATION) + [(_rel, _rel_text)]
+    claims += 1
+    _gap = population_currency(head=_rel + 3, population=_with_rel, release=_rel,
+                               tree=_rel_pair)
+    if _gap:
+        failed += 1
+        print(f"  🔴 RELEASE_GAP_REFUSED sessions between two releases owe no block, and "
+              f"a tree three sessions past release {_rel} with its block registered was "
+              f"refused: {_gap[:1]}")
+    claims += 1
+    _owed = population_currency(head=_rel + 1, population=list(BLOCK_POPULATION),
+                                release=_rel, tree=_rel_pair)
+    if not _owed or f"session {_rel} has SHIPPED" not in _owed[-1]:
+        failed += 1
+        print(f"  🔴 RELEASE_OWED the session after release {_rel}, with that release's "
+              f"block missing, was not refused by name: {_owed[-1:]}")
+    claims += 1
+    if population_currency(head=_rel, population=list(BLOCK_POPULATION), release=_rel,
+                           tree=("9.9.9", "9.9.9")):
+        failed += 1
+        print("  🔴 RELEASE_CUT_PR the cut's own PR was asked for its own block, which "
+              "only the post-merge run can measure")
+    claims += 1
+    _unrec = population_currency(head=_rel + 1, population=_with_rel, release=_rel,
+                                 tree=("9.9.9", _rel_pair[1]))
+    if not _unrec or "RELEASE_HEAD" not in _unrec[-1] or "9.9.9" not in _unrec[-1]:
+        failed += 1
+        print(f"  🔴 RELEASE_UNRECORDED a tree whose host moved past the release block's "
+              f"pair, with the marker left behind, was not refused: {_unrec[-1:]}")
+    claims += 1
+    _unread = population_currency(head=_rel + 1, population=_with_rel, release=0,
+                                  tree=_rel_pair)
+    if not _unread or "checked nothing" not in _unread[-1]:
+        failed += 1
+        print(f"  🔴 RELEASE_HEAD_UNREAD an unreadable release head was read as no "
+              f"requirement: {_unread[-1:]}")
+    claims += 1
+    _ahead = population_currency(head=_rel, population=_with_rel, release=_rel + 1,
+                                 tree=_rel_pair)
+    if not _ahead or "has not opened" not in _ahead[-1]:
+        failed += 1
+        print(f"  🔴 RELEASE_HEAD_FUTURE a release head past the tree's own session was "
+              f"accepted: {_ahead[-1:]}")
 
     # ── 🆕 289 — `BLOCK_ABSENT`, THE ONLY ROUTE PAST THE READER ABOVE ────────────────
     #
