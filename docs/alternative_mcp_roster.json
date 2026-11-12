@@ -633,7 +633,76 @@
         ".gitattributes",
         ".gitignore"
       ],
-      "note": "🟢 323: BOTH WITHDRAWN FIELDS READ BACK AT SOURCE at head `7e801d7` (previous pass `10a4508`), and `debugger` and `csharp` claimed for the first time. 🔴 THIS REPOSITORY IS ONE HALF OF A TWO-REPO PRODUCT AND THAT SINGLE FACT DRIVES BOTH WITHDRAWN FIELDS. .mcp.json wires the agent to @npgamedev/godot-mcp-server on npm, and ui/dock/ext/info_dialog.gd:80 says so outright - the agent-facing tool count 'is larger and lives in the MCP server (which adds LSP, discover_tools, and extension tools)'. So real_lsp_client:false is a ruling about the TOOLKIT REPO and not about the product. The split is architecturally explicit, not accidental: lsp_publisher.gd:3-15 documents that the editor cannot read its own LSP bind status, so the addon resolves network/language_server/remote_host/port OUTBOUND into a registry entry and receives an authoritative verdict INBOUND via editor.set_lsp_status (commands/editor/editor_commands.gd:37,48), rendering it as a dock label. README:150 advertises LSP-backed diagnostics, symbols, hover, completion and references, and Validations/Sections/26-lsp-tools.md names seven lsp_* tools - none implemented here. A ROSTER ROW FOR THE PRODUCT ALMOST CERTAINLY NEEDS godot-mcp-server READ TOO, AND real_lsp_client:true SHOULD BE EXPECTED TO LAND THERE. Queued as a candidate row rather than assumed. 🔵 DAP IS A DELIBERATE FALSE WITH NO SIBLING-REPO CAVEAT VISIBLE: the only mention in the tree tells users to keep the toolkit's WebSocket port off 6006 BECAUSE Godot's DAP server already holds it. They route around DAP rather than toward it. 🔵 CREDIT WHERE IT IS DUE (Rule 4): this project does NOT fall into the .cs-into-GDScript trap that two others in this category do. script.write accepts .gd/.cs/.gdshader/.gdshaderinc but the GDScript validator is gated `if extension == \"gd\"`, _cmd_script_check rejects .cs outright with 'script.check only supports .gd files' (script_commands.gd:291), and debug_commands.gd:88-91 refuses .cs breakpoints and redirects to the user's IDE. They accept C# for file I/O and decline it for GDScript-only semantics. 🔴 SCOPE THE csharp:true CAREFULLY IN PUBLIC: it means C#-aware handling and a working C# extension-authoring path, NOT C# project support. Their own Validations/RESULTS.md:45 records the C# validation section as SKIPPED - a GDScript dogfood project with zero .cs files."
+      "note": "🟢 323: BOTH WITHDRAWN FIELDS READ BACK AT SOURCE at head `7e801d7` (previous pass `10a4508`), and `debugger` and `csharp` claimed for the first time. 🔴 THIS REPOSITORY IS ONE HALF OF A TWO-REPO PRODUCT AND THAT SINGLE FACT DRIVES BOTH WITHDRAWN FIELDS. .mcp.json wires the agent to @npgamedev/godot-mcp-server on npm, and ui/dock/ext/info_dialog.gd:80 says so outright - the agent-facing tool count 'is larger and lives in the MCP server (which adds LSP, discover_tools, and extension tools)'. So real_lsp_client:false is a ruling about the TOOLKIT REPO and not about the product. The split is architecturally explicit, not accidental: lsp_publisher.gd:3-15 documents that the editor cannot read its own LSP bind status, so the addon resolves network/language_server/remote_host/port OUTBOUND into a registry entry and receives an authoritative verdict INBOUND via editor.set_lsp_status (commands/editor/editor_commands.gd:37,48), rendering it as a dock label. README:150 advertises LSP-backed diagnostics, symbols, hover, completion and references, and Validations/Sections/26-lsp-tools.md names seven lsp_* tools - none implemented here. A ROSTER ROW FOR THE PRODUCT ALMOST CERTAINLY NEEDS godot-mcp-server READ TOO, AND real_lsp_client:true SHOULD BE EXPECTED TO LAND THERE. Queued as a candidate row rather than assumed. 🔵 DAP IS A DELIBERATE FALSE WITH NO SIBLING-REPO CAVEAT VISIBLE: the only mention in the tree tells users to keep the toolkit's WebSocket port off 6006 BECAUSE Godot's DAP server already holds it. They route around DAP rather than toward it. 🔵 CREDIT WHERE IT IS DUE (Rule 4): this project does NOT fall into the .cs-into-GDScript trap that two others in this category do. script.write accepts .gd/.cs/.gdshader/.gdshaderinc but the GDScript validator is gated `if extension == \"gd\"`, _cmd_script_check rejects .cs outright with 'script.check only supports .gd files' (script_commands.gd:291), and debug_commands.gd:88-91 refuses .cs breakpoints and redirects to the user's IDE. They accept C# for file I/O and decline it for GDScript-only semantics. 🔴 SCOPE THE csharp:true CAREFULLY IN PUBLIC: it means C#-aware handling and a working C# extension-authoring path, NOT C# project support. Their own Validations/RESULTS.md:45 records the C# validation section as SKIPPED - a GDScript dogfood project with zero .cs files. 🟢 340 (BP-0020): THE SIBLING WAS READ, AND THE EXPECTATION ABOVE HELD. `NPGameDev/godot-mcp-server` at `331fead` (= v1.1.2, npm `latest`) has its own row, `npgamedev-godot-mcp-server`, with `real_lsp_client: true`: it dials Godot's language server at the host/port this add-on's `lsp_publisher.gd` publishes, and it is the server that pushes the verdict this add-on's dock shows via `editor.set_lsp_status`. This row's `real_lsp_client: false` stays, as a ruling about this repository; a claim about the PRODUCT reads both rows. DAP stays false on both."
+    },
+    {
+      "name": "npgamedev-godot-mcp-server",
+      "repo": "NPGameDev/godot-mcp-server",
+      "asset_id": null,
+      "channel": "npm",
+      "npm": "@npgamedev/godot-mcp-server",
+      "npm_version": "1.1.2",
+      "npm_publish_date": "2026-10-29",
+      "mcp_registry_name": null,
+      "category": "alternative-mcp-server",
+      "stars_at_analysis": 15,
+      "last_analysed": "2026-11-11",
+      "last_analysed_commit": "331fead",
+      "source_verifiable": true,
+      "debugger": "godot-internal-editor-debugger",
+      "real_dap_client": false,
+      "real_lsp_client": true,
+      "csharp": false,
+      "protocol_revision": "2025-11-25",
+      "cadence": "biweekly",
+      "status": "active",
+      "note": "🟢 340 (BP-0020): FIRST SOURCE-LEVEL PASS, at head `331fead` (2026-11-11), whose `src/`, `package.json` and `package-lock.json` are byte-identical to tag `v1.1.2` (`20eb826`), npm `latest`; the shipped `dist/` of 1.1.2 and of 1.0.0 grepped to the same answers. Nothing was executed. 🔴 THIS IS THE OTHER HALF OF `NPGameDev/godot-mcp-toolkit` (asset 5375), AND IT CARRIES THE LANGUAGE-SERVER CLIENT THE TOOLKIT ROW RECORDS AS ABSENT: the toolkit's `real_lsp_client: false` is a ruling about one repository, and the product a user installs (add-on + this package, wired by the toolkit's `.mcp.json`) has a real GDScript LSP client. It dials Godot's language server itself over TCP at the host/port the add-on publishes in its registry, never a blind 6005, and seven on-demand `lsp_*` tools sit on it (diagnostics, symbols, hover, project diagnostics, completion, definition, references). Minimal by design: client capabilities `{}`, GDScript only, `.cs` refused, no rename or formatting. 🔵 THE DEBUGGER IS THE ADD-ON'S, RELAYED: four `debug_*` tools forward over the editor WebSocket to the toolkit's `EditorDebuggerPlugin` (state, list/set breakpoint, continue); no step, pause, stack or variables tool, although the group advertises 'execution flow' and carries `step` as a discovery keyword. No DAP anywhere. 🔵 SURFACE: 113 static tools (34 eager, 79 in 28 on-demand groups behind `discover_tools`) plus 2 meta tools, so 36 at startup and 115 built-in names at most, plus the add-on's extension tools pulled at runtime; derivable by `grep -hE '^    name: \"' src/tools/*.ts | sort -u | wc -l` = 113 (its README's '113 (34 + 2 meta, 79)' sums to 115). stdio only; it names itself `godot-mcp-toolkit` to the client. `protocol_revision` is not pinned by the server: SDK 1.32.1 (exact pin) negotiates, LATEST 2025-11-25, echoing any supported client version. 🔴 SCOPE `csharp:false` CAREFULLY: C# projects are a CI-tested target for the relayed editor tools on the mono editor (`test/sections/25_csharp_compat.ts`), but the server adds no C# toolchain or language intelligence. Promoted from `surfaced` (first seen 291) in the commit that adds this reading.",
+      "capability_evidence": {
+        "real_lsp_client": "src/lsp/lspClient.ts:303 net.createConnection to Godot's GDScript language server; host/port from the toolkit registry entry lsp_host/lsp_port (src/registry.ts:41-42, :206-215), else --lsp-port/GODOT_MCP_LSP_PORT, else 6005 only when no live editor claims it (lspClient.ts:118-152). Content-Length framing written at lspClient.ts:503 and parsed at :519; initialize :325, initialized :350, didOpen/didChange/didClose :405/:394/:421, publishDiagnostics consumed :582-610. textDocument/hover, completion, definition, documentSymbol, references at src/tools/lsp.ts:269/330/385/440/468. Seven on-demand tools (lsp_diagnostics, lsp_symbols, lsp_hover, lsp_project_diagnostics, lsp_completion, lsp_definition, lsp_references) bypass the add-on bridge (src/groups/groupToolHandlers.ts:106-114). GDScript only; .cs refused at src/lsp/lspSession.ts:28-33. Same createConnection and Content-Length lines in the shipped dist/lsp/lspClient.js at 1.1.2 and at 1.0.0 (:214, :386).",
+        "real_dap_client": "Zero hits across the 489 tracked files, case-insensitive, for \\bdap\\b, debug adapter, debugadapter, setBreakpoints, configurationDone, and zero in src/ for the DAP request names attach, launch, threads, scopes, variables, stepIn, stepOut; positive control godot = 2575. The one 6006 is an LSP unit-test port value (test/unit/discoverLsp.test.ts:172); Content-Length occurs only in LSP code and tests. Every socket in src/: createConnection at src/lsp/lspClient.ts:303 (LSP) and src/registryLiveness.ts:99 (a WebSocket liveness probe), new WebSocket at src/transport/channel.ts:240 (editor and runtime channels); no node:http, child_process or spawn. Same zeros in npm dist 1.1.2 and 1.0.0.",
+        "debugger": "src/tools/debug.ts:2-4 'breakpoint management + debug state via the toolkit's EditorDebuggerPlugin bridge'; debug_state, debug_list_breakpoints, debug_set_breakpoint, debug_continue (debug.ts:13-47, group src/groups/defs/debugger.ts:7) forward debug.state, debug.list_breakpoints, debug.set_breakpoint, debug.continue over the editor WebSocket (groupToolHandlers.ts:121-122) to the add-on, whose transport/debug_bridge.gd:2 extends EditorDebuggerPlugin. debugger_get_log relays debugger.get_log (src/tools/runtime.ts:67-68). No step, pause, stack-frame or variables tool exists, though debugger.ts:8 lists 'step' as a keyword.",
+        "csharp": "Zero hits in src/ for dotnet, csproj, omnisharp, csharp-ls, roslyn, msbuild, \\.sln; src/ imports no child_process, so it cannot build anything. The LSP tools refuse .cs (src/lsp/lspSession.ts:28-33, 'C# (.cs) diagnostics come from the .NET language server in your IDE'); the project scan enumerates .gd only (src/lsp/lspProjectScan.ts:33, :88). .cs is accepted only as a file type by relayed tools (src/tools/script.ts:28/41/85, src/tools/node.ts:106); script_check is .gd only (script.ts:96). dotnet build appears only in CI (.github/actions/cross-version-behavioral/action.yml:192-196), warming a C# fixture for test/sections/25_csharp_compat.ts."
+      },
+      "capability_paths": [
+        "src/",
+        "scripts/",
+        "package.json",
+        "package-lock.json",
+        "tsconfig.json"
+      ],
+      "capability_paths_excluded": [
+        "docs/",
+        "test/",
+        ".github/",
+        "AGENTS.md",
+        "ARCHITECTURE.md",
+        "ATTRIBUTIONS.md",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "CODE_OF_CONDUCT.md",
+        "COMPATIBILITY.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "README.md",
+        "RELEASING.md",
+        "SECURITY.md",
+        "llms.txt",
+        ".editorconfig",
+        ".gitattributes",
+        ".gitignore",
+        ".prettierignore",
+        ".prettierrc",
+        "eslint.config.js",
+        "tsconfig.probes.json",
+        "typedoc.json"
+      ],
+      "forge_id": 1210261155,
+      "stars": 15,
+      "forks": 8,
+      "forge_pushed_at": "2026-11-11",
+      "downloads_30d": 12597,
+      "ranked_on": "2026-11-11",
+      "first_seen": 291
     },
     {
       "name": "godot-agent-loop",
@@ -2749,25 +2818,6 @@
       "forks": 4,
       "forge_pushed_at": "2026-09-04",
       "downloads_30d": 559,
-      "ranked_on": "2026-09-21"
-    },
-    {
-      "key": "npgamedev/godot-mcp-server",
-      "channels": [
-        "npm"
-      ],
-      "first_seen": 291,
-      "repo": "npgamedev/godot-mcp-server",
-      "npm": "@npgamedev/godot-mcp-server",
-      "mcp_registry_name": null,
-      "version": "1.0.0",
-      "last_published": "2026-07-26",
-      "description": "MCP server that connects AI coding assistants to the Godot 4.2+ editor (scenes, nodes, scripts, ClassDB, playtests) via the companion godot-mcp-toolkit plugin.",
-      "forge_id": 1210261155,
-      "stars": 4,
-      "forks": 1,
-      "forge_pushed_at": "2026-09-21",
-      "downloads_30d": 2539,
       "ranked_on": "2026-09-21"
     },
     {
