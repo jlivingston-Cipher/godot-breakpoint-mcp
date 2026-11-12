@@ -10718,6 +10718,54 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 68 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
 > ```
 """),
+    # 🆕 342 — 341's BLOCK, THE FIRST RECORDED UNDER BP-0084 (B): A RELEASE'S, NOT A SESSION'S.
+    # `HANDOFF_SESSION341.md` was drafted at 342 by `--emit-handoff 341 ../../HANDOFF_SESSION340.md
+    # --measured ci341/` in a worktree AT 8fdbac4 (342's edits never in it, nothing stashed) and the
+    # artifacts of #447's post-merge `ci` run 43172000196, every leg on its FIRST attempt. Post-merge
+    # `integration` 43172000187 was 19/20 on BOTH attempts: the authoring plane's after-check caught
+    # the Godot 4.7 editor re-saving the new `example/default_bus_layout.tres` and writing its uid into
+    # `project.godot` (the probe itself 224/224 each time); measured at 342 on a probe-free headless
+    # boot and fixed in this PR. MOVED +1 is 82f1208..8fdbac4 (#447's squash: 340's block and the
+    # cut in one tree). `untagged 0` and `unshipped 0` because `v1.95.0` was tagged AT 8fdbac4 at 342
+    # (`release_names.py --tag-cmd`, TAG_OK). Three counters read by hand from those artifacts:
+    # 27 CI jobs (ci 7 + integration 20), `0 exempt` (BOUNDARY_GATE_DISCOVER, INSTRUMENT_GATE_DISCOVER),
+    # `exempt 43` (FLOOR_PIN_REASON); all three agree with the draft on every leg, and `1061/1061` is
+    # each leg's own `# pass`. The `main` row's subject drops 340's block and the four ledger IDs.
+    #
+    # 🔵 `host / addon` SAYS `MOVED`: #447 is the cut, host/src and addons/ changed and the addon was
+    # re-stamped, 1.94.0 / 1.23.0 -> 1.95.0 / 1.24.0. Precedent: 329, 330, 333, 334, 336.
+    #
+    # 🟡 THE npm AND ASSET LIBRARY ROWS ARE HONEST ABOUT A PUBLISH NOT YET DONE, AS AT 265 TO 270. The
+    # registry's `latest` read 1.94.0 at 342 (the publish needs his OTP); asset 5335 answers 1.23.0
+    # (modified 2026-11-07 20:47Z) and 1.24.0 is not yet submitted. 0 open issues, 0 open PRs, read
+    # before this PR opened. `QUEUE_HEAD` moves 341 -> 342 and `RELEASE_HEAD` reads 341.
+    (341, """> ```
+> main                 8fdbac4 — session341 release 1.95.0 / addon 1.24.0 — capture through a startup tap, measurement off-thread, install floors (#447)  MOVED +1
+> branch 341           session341 · PR #447
+> host / addon         1.95.0 / 1.24.0  🟢 MOVED — the cut; host/src and addons/ changed, and the addon re-stamped
+> npm                  🟡 registry 1.94.0 · untagged 0 · unshipped 0 · PUBLISH OWED, needs his OTP ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟡 addon 1.23.0 live · 1.24.0 not yet submitted
+> 🟢 VERIFIED AFTER THE CHANGE   1061/1061 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3623 · late not-loaded 0 · late constructed 368/160 · py gates 18/6/12
+>               · SIG 303/105 · discover 59/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2577 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 342 file(s) / 22 suffixes · seal 117
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 298 tools / 3937 nodes / 20 keys / 0 problems
+>               · wire_invisible 35 cases · lint_ceiling 18 py · taut 5540
+>               · duration 5 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 696 claims · landscape 4 channel(s) / 58 analysed / 91 surfaced
+>               · capability 106 claimed / 0 unread / 10 uncited
+>               · cadence 8 within / 36 past / 14 never analysed
+>               · identity 72 of 149 / 2 renamed / 0 collisions
+>               · error-code discipline 74 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
