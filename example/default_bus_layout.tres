@@ -1,0 +1,23 @@
+[gd_resource type="AudioBusLayout" load_steps=3 format=3]
+
+; BP-0070 (addon 1.24.0): a bus that carries effects when the game starts, so the runtime bridge
+; puts its switched-off capture tap at the end of it. Nothing plays on Fx unless
+; res://tests/tap_probe.gd is armed; it sends to Master, so every other fixture mixes as before.
+
+[sub_resource type="AudioEffectSpectrumAnalyzer" id="1"]
+resource_name = "SpectrumAnalyzer"
+
+[sub_resource type="AudioEffectRecord" id="2"]
+resource_name = "Record"
+
+[resource]
+bus/1/name = &"Fx"
+bus/1/solo = false
+bus/1/mute = false
+bus/1/bypass_fx = false
+bus/1/volume_db = 0.0
+bus/1/send = &"Master"
+bus/1/effect/0/effect = SubResource("1")
+bus/1/effect/0/enabled = true
+bus/1/effect/1/effect = SubResource("2")
+bus/1/effect/1/enabled = true

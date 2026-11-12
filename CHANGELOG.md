@@ -4,6 +4,65 @@ All notable changes to Breakpoint MCP are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.95.0] — 2026-11-11
+
+_Addon **1.23.0 → 1.24.0** — `runtime_bridge.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface unchanged: **298** (secure default **285**)._
+
+The live capture hears the buses finished games keep effects on (BP-0070), the measurement no
+longer holds up every other tool call (BP-0062), and the install floors move past November's
+advisories (BP-0079).
+
+### Changed
+
+**`runtime_audio_capture` listens on a bus that carries effects, without disturbing the game.**
+Through 1.94.0 it refused such a bus (`bus_has_effects`), because adding or removing any effect makes
+Godot rebuild every effect on that bus: a recording `AudioEffectRecord` stops and loses its take, a
+spectrum analyser instance the game holds freezes, reverb tails restart. Many finished games keep a
+limiter or compressor on Master, so the bus people most wanted to hear was the one refused. Now the
+addon adds its capture when the game starts, when the runtime bridge is created (as an autoload,
+before any autoload's `_ready`): each bus that carries effects at that moment gets one switched-off
+`AudioEffectCapture` named `breakpoint_tap` at the end of its chain, and a capture switches it on
+for its seconds and off again with `set_bus_effect_enabled`, which flips one flag and rebuilds
+nothing. Putting the tap in is itself a rebuild, so a bus the game is already using at that moment
+is left as it is: one that is sounding, one whose `AudioEffectRecord` is recording, or one whose
+effect instance game code already holds (an autoload listed above `BreakpointRuntimeBridge` can
+have taken one in its `_init`; list the bridge first and nothing of the game's runs before it). Measured on Godot 4.2.2, 4.3,
+4.5 and 4.7.1 with a SpectrumAnalyzer and a recording AudioEffectRecord on the bus: the capture read
+the fixture's −12.04 dBFS tone through both effects, the recording kept recording, and the spectrum
+instance the game held stayed the same object; on 4.2.2 and 4.7.1 an overlapping capture was also
+refused as `bus_busy` with the first one intact. The control on 4.2.2 and 4.7.1: adding the same capture
+effect instead stopped the recording and detached the instance.
+
+**Each bus that carries effects at startup carries one extra, switched-off effect during runs with
+the addon.** The game sounds the same — the mixer skips an effect that is off; the output was
+bit-identical with and without the taps on 4.2.2 and 4.7.1 — but its code can see it: `AudioServer.get_bus_effect_count` is one higher on those buses, and `generate_bus_layout`
+includes it (a layout saved that way is reused on the next run, not given a second tap). Add
+`breakpoint_mcp/runtime/audio_tap=false` to `project.godot` (or in Project Settings, with Advanced
+Settings on) to leave the taps out. A bus with no effects at startup gets no tap: a capture there is
+added and taken off as in 1.23.0, which rebuilds only an effect the game adds to that bus during the
+capture. Effects the game adds after the tap run after the capture point, and `notes` names them; a
+game that takes the capture off its bus mid-listen (by replacing its bus layout, say) ends the
+capture there, and `notes` says so rather than blaming a deadline. A bus that carries effects and
+has no tap is still refused as `bus_has_effects`, and the refusal now says why there is none: the
+game was already using it when the bridge started, the bus was created or the layout replaced
+after the game started, the setting is off, or the game created the bridge after its first frame.
+An exported game that does not open the bridge installs no taps.
+
+**`godot_record`, `audio_analyze` and `runtime_audio_capture` measure on a thread of their own.**
+Measuring is linear in the file and the server answers every call on one thread, so a long
+recording held up every other tool call while it was measured. Now the reading and measuring run on
+a worker thread. Measured on an M2: two minutes of eight-channel float (176 MB) took 7.8 s, during
+which the server's thread used to be held for all of it; off-thread it waited at most 7 ms, and
+the numbers and picture are the in-thread ones exactly. Measurements still run one at a time, as
+they did in-thread, so several long files never sit in memory at once. A short stereo file costs
+about 35 ms more for starting the thread. A `compare_to` is now read on that thread too, still
+before Godot runs or the game is asked to listen; if it stops being a WAV between that check and
+the measurement, the refusal says so and keeps the new recording instead of deleting it.
+
+**The install floors are `@modelcontextprotocol/sdk` `^1.32.0` and `zod` `^4.6.6`**, the first
+versions past November's security advisories. A fresh install already resolved them; an install
+that reused older copies could still pick a version with a published advisory, and now cannot.
+
 ## [1.94.0] — 2026-11-06
 
 _Addon **1.22.1 → 1.23.0** — `runtime_bridge.gd` and `error_remedies.gd` changed, so the addon is re-stamped in this cut and an Asset Library submission is owed. Tool surface **297 → 298** (secure default **284 → 285**): `runtime_audio_capture`, in the `runtime` toolset._

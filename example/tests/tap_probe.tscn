@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+; Dedicated fixture for BP-0070 (the startup tap): instanced into the running example game by
+; runtime_node_add. See tap_probe.gd.
+
+[ext_resource type="Script" path="res://tests/tap_probe.gd" id="1"]
+
+[node name="TapProbe" type="Node"]
+script = ExtResource("1")
