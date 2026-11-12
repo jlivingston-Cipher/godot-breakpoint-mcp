@@ -1471,15 +1471,24 @@ jobs:
           # uid:// form. That is the trade #145 accepted deliberately, and check 17
           # gates the COMMITTED form; this gates what a live boot is allowed to do to it.
           # Anything else means something wrote a project setting and left it behind.
+          # 🆕 342 — AND THE BUS LAYOUT'S, THE SAME REWRITE ONE SETTING OVER. Since #447 the
+          # example carries `default_bus_layout.tres` (BP-0070's Fx bus), and Godot 4.7 writes
+          # `[audio] buses/default_bus_layout="uid://…"` the first time it saves project.godot
+          # with that file present — measured at 342 on a headless boot with no probe at all,
+          # and it failed both attempts of #447's post-merge run here. Check 17's reason for
+          # the autoload holds for it too: a uid:// setting in the COMMITTED file does not
+          # resolve on a fresh clone, so it is accepted here and never committed. The .tres
+          # itself is committed in the form the 4.7 editor writes it, uid in its header, so a
+          # boot leaves it byte-identical.
           if ! git diff --quiet -- example/project.godot; then
             if git diff -U0 -- example/project.godot \
                  | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
-                 | grep -qvE '^[+-]BreakpointRuntimeBridge='; then
-              echo "::error::example/project.godot changed beyond the editor's accepted autoload rewrite"
+                 | grep -qvE '^[+-]BreakpointRuntimeBridge=|^\+\[audio\]$|^\+buses/default_bus_layout="uid://[a-z0-9]+"$|^\+$'; then
+              echo "::error::example/project.godot changed beyond the editor's accepted uid rewrites"
               git diff -- example/project.godot
               exit 1
             fi
-            echo "example/project.godot carries only the editor's accepted autoload rewrite (#145)"
+            echo "example/project.godot carries only the editor's accepted uid rewrites (#145, BP-0070's bus layout)"
           fi
           echo "example/ is exactly as the probe found it — git agrees with AUTH_CLEAN"
       - name: Editor log tail (on failure)
