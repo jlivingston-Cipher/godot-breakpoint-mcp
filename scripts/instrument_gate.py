@@ -795,6 +795,13 @@ INSTRUMENTS = [
             # window produces, which makes it the sharper of the two.
             "{SIG:depResolution}": "return {};",
             "{SIG:resolutionDrift}": "return [];",
+            # 🆕 339 — ONE SCHEMA, TWO SPELLINGS, ADDED IN THE COMMIT THAT SHIPPED THEM. Both
+            # blinds are the answer the file gave before 339, which is the healthy-looking
+            # one: `canonical` blinded hands every schema back unchanged and `bareTypeUnion`
+            # blinded finds no union to collapse, so either one puts the 252 converter
+            # paths back in `major`. The self-test's equivalence rows and claims redden.
+            "{SIG:canonical}": "return v;",
+            "{SIG:bareTypeUnion}": "return null;",
         },
     },
     {
@@ -2680,7 +2687,26 @@ LATE_DECLARED_GREEN = {
         "`forbidden`, and `forbidden === forbidden`. That is a property of the baseline "
         "this command can afford (there is only one surface), not of the member: the "
         "[A:gate] axis reddens it, and so would the release-time classifier against a real "
-        "ref. It is the one of five that the self-comparison structurally cannot reach.",
+        "ref. It was the one of five that the self-comparison structurally cannot reach "
+        "until 339, whose two members below are the same case.",
+    # 🆕 339 — ONE SCHEMA, TWO SPELLINGS, AND THE SELF-COMPARISON IS BLIND TO BOTH BY THE
+    # SAME ARGUMENT AS THE ROW ABOVE. MEASURED before the rows were written, with this
+    # gate's own late shape (the real body on the first call, the blind from the second):
+    # [A:gate] reddens on both (109/117 and 111/117 claims), [B:live] stays green on both
+    # (`self PATCH moved=0`, 0 problems). Each must keep doing both, or this table refuses.
+    ("wire_diff.mjs", "{SIG:canonical}", "B:live"):
+        "the live axis compares this surface WITH ITSELF, so a canonicaliser that stopped "
+        "canonicalising rewrites both sides identically and the comparison cannot tell. "
+        "And the wire this command reads has nothing left for it to do: the installed zod "
+        "already writes every bare-type union as a `type` list, so the member's whole job "
+        "is the OTHER side of a release window, which only a real baseline ref supplies. "
+        "The [A:gate] axis reddens it, and so does the release-time classifier.",
+    ("wire_diff.mjs", "{SIG:bareTypeUnion}", "B:live"):
+        "the same command and the same reason, one call further in: it only decides "
+        "whether `canonical` collapses an `anyOf`, and the live wire carries no bare-type "
+        "`anyOf` to decide about, on either side of a self-comparison. Its coverage is "
+        "the self-test, where a blind returning null makes every equivalence row and "
+        "claim disagree at once.",
     ("boundary_gate.mjs", "{SIG:collapsed}", "B:live"):
         "the blind returns `false` — which is the CORRECT answer for all seven live "
         "populations of a healthy tree. There is no collapse for it to miss, so a green "

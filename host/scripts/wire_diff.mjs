@@ -150,8 +150,67 @@ const CONSTRAINTS = ["pattern", "format", "minimum", "maximum", "exclusiveMinimu
   "exclusiveMaximum", "minLength", "maxLength", "minItems", "maxItems", "multipleOf",
   "additionalProperties", "uniqueItems", "propertyNames"];
 
+// 🆕 339 — ONE SCHEMA, TWO SPELLINGS, AND THE CONVERTER CHOSE THE OTHER ONE.
+// zod 4.5.0 (2026-08-28) writes a union of plain JSON types as `{type: ["number","null"]}`
+// where 4.4.3 wrote `{anyOf: [{type:"number"}, {type:"null"}]}`. A value validates against
+// that `anyOf` exactly when its type is one of the members' types, which is the `type`
+// list's definition word for word, so the two accept the same values. Read unnormalised,
+// every nullable output and every plain-type union read as a TYPE CHANGE: measured at 339
+// over d6914aa's own lockfile against zod 4.6.7 + SDK 1.32.2, 252 MAJOR paths across the
+// two surfaces and not one of them a value a caller could send or receive differently.
+// Every fresh install since 2026-08-28 already got the new spelling through the caret
+// range; only this tree's lockfile held the old one, so check 8 was measuring a wire
+// nobody installed.
+//
+// 🔴 ONLY `anyOf`, ONLY WHEN EVERY MEMBER IS `{type: <one name>}` AND NOTHING ELSE. A member
+// that carries anything beside its `type` (a `minLength`, a `pattern`, a description, a
+// nested shape) is not a bare type and the union is left exactly as it was. `oneOf` is
+// never collapsed: `integer` is inside `number`, so `oneOf` of those two refuses every
+// integer, which no `type` list can say.
+// 🔴 AND NEVER INSIDE A VALUE. `enum`, `const`, `default` and `examples` hold DATA, and an
+// author's data may spell `{anyOf: [...]}` without meaning a schema (208 §3's lesson in
+// this file: a walker that cannot tell an author's vocabulary from the protocol's).
+const DATA_KEYWORDS = new Set(["enum", "const", "default", "examples"]);
+const SCHEMA_MAPS = new Set(["properties", "patternProperties", "definitions", "$defs"]);
+
+/** The member types of an `anyOf` that is only bare types, sorted and unique; else null. */
+export function bareTypeUnion(v) {
+  if (!v || typeof v !== "object" || !Array.isArray(v.anyOf) || v.anyOf.length === 0) return null;
+  const types = [];
+  for (const m of v.anyOf) {
+    if (!m || typeof m !== "object" || Array.isArray(m)) return null;
+    const keys = Object.keys(m);
+    if (keys.length !== 1 || keys[0] !== "type" || typeof m.type !== "string") return null;
+    types.push(m.type);
+  }
+  return [...new Set(types)].sort();
+}
+
+/** The schema with each bare-type `anyOf` written as the sorted `type` list it is equal to. */
+export function canonical(v) {
+  if (Array.isArray(v)) return v.map(canonical);
+  if (!v || typeof v !== "object") return v;
+  const out = {};
+  for (const [k, x] of Object.entries(v)) {
+    if (DATA_KEYWORDS.has(k)) out[k] = x;
+    else if (SCHEMA_MAPS.has(k) && x && typeof x === "object" && !Array.isArray(x)) {
+      out[k] = Object.fromEntries(Object.entries(x).map(([n, s]) => [n, canonical(s)]));
+    } else out[k] = canonical(x);
+  }
+  const union = out.type === undefined ? bareTypeUnion(out) : null;
+  if (union) { delete out.anyOf; out.type = union; }
+  // A `type` list's order means nothing either, and the converter writes it in the
+  // author's order while the collapse above writes it sorted.
+  if (Array.isArray(out.type) && out.type.every((x) => typeof x === "string")) {
+    const ts = [...new Set(out.type)].sort();
+    out.type = ts.length === 1 ? ts[0] : ts;
+  }
+  return out;
+}
+
 export function typeName(v) {
   if (!v || typeof v !== "object") return "unknown";
+  v = canonical(v);
   const narrowed = CONSTRAINTS.filter((k) => v[k] !== undefined);
   const suffix = narrowed.length
     ? `+${digest(Object.fromEntries(narrowed.map((k) => [k, v[k]])))}`
@@ -532,8 +591,9 @@ async function main() {
     // both of its own collapse floors — and a `classify`, `shapeOf` or `normalise` that
     // went quiet cannot do all three. That is what makes this step a live axis for the
     // classifier and not only for the key roster (232 §5.6's argument, paid rather than
-    // declared). `effectiveTaskSupport` is the one member a SYMMETRIC comparison cannot
-    // reach — both sides forbid identically — and it carries the declared-green row.
+    // declared). `effectiveTaskSupport` is a member a SYMMETRIC comparison cannot
+    // reach — both sides forbid identically — and it carries a declared-green row; so,
+    // since 339, do `canonical` and `bareTypeUnion`, which rewrite both sides alike.
     let self;
     try {
       self = classify(tools, tools);
