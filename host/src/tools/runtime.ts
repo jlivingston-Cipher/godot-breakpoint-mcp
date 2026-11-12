@@ -9,8 +9,8 @@ import type { Config } from "../config.js";
 import fs from "node:fs";
 import nodePath from "node:path";
 import { resolveInsideProject, resolveWriteTarget, resolveExistingFile } from "../paths.js";
-import { measureCapture, readPcm, type CapturedSound } from "./hearing.js";
-import { WavError, type Pcm } from "../hearing.js";
+import { measureCapture, checkWav, type CapturedSound } from "./hearing.js";
+import { WavError } from "../hearing.js";
 import { NAME_TAKEN_CLAUSE } from "../schemas.js";
 import { producerWithheldClause, selectPrivilegedGroups } from "../capabilities.js";
 
@@ -48,6 +48,10 @@ type CaptureReply = CapturedSound & {
   bus_muted: boolean;
   soloed?: string[];
   discarded_frames: number;
+  /** 🆕 BP-0070 (addon 1.24.0): the effects the game added after the bus's startup tap, which the capture did not hear. */
+  after_tap?: string[];
+  /** 🆕 BP-0070: the game took the capture effect off its bus mid-capture (replaced its bus layout, say). */
+  lost_capture?: boolean;
   /** D1a: what the game logged during the capture, attached by the async lane. */
   engine_log?: { total?: number; entries?: Array<{ message: string }> };
 };
@@ -448,16 +452,18 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
   // `notes` says what the capture point cannot hear (the bus's own volume, mute and solo), samples
   // lost to a long frame, and anything the game logged meanwhile. 🔴 336's review arm: adding or
   // removing ANY bus effect makes Godot rebuild every effect on that bus (a recording stopped, a
-  // spectrum instance the game held froze), so the addon refuses a bus that already has effects, a
-  // bus already being captured, and surround output. On what it accepts it adds and removes one
-  // effect on an effect-free bus and writes a new WAV under `.godot/`: not destructive, and no
+  // spectrum instance the game held froze). 🆕 BP-0070 (1.95.0 / addon 1.24.0): so a bus that carries
+  // effects when the game starts gets a switched-off capture at the end of its chain then, and a
+  // capture switches it on and off, which rebuilds nothing; an effect-free bus still gets one capture
+  // added and removed. The addon refuses a bus with effects and no tap, a bus already being
+  // captured, and surround output. It writes a new WAV under `.godot/`: not destructive, and no
   // confirmation (era-neutral until 2.0, BP-0029).
   server.registerTool(
     "runtime_audio_capture",
     {
       title: "Capture and measure the running game's sound",
       description:
-        "Listen to the running game for a few seconds of real time: a capture effect on an audio bus with no effects " +
+        "Listen to the running game for a few seconds of real time: a capture effect at the end of an audio bus " +
         "collects what it plays, then it is measured like godot_record's recording (LUFS, peaks, clipping, octave bands, spectrogram).",
       inputSchema: {
         seconds: z.number().min(0.1).max(10).optional().describe("Seconds to listen (default 3)"),
@@ -467,9 +473,12 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       },
     },
     async ({ seconds, bus, compare_to, peer }) => {
-      let before: Pcm | null = null;
+      let beforeAbs: string | null = null;
       try {
-        if (compare_to !== undefined) before = readPcm(resolveExistingFile(compare_to, config.projectPath, "compare_to"));
+        if (compare_to !== undefined) {
+          beforeAbs = resolveExistingFile(compare_to, config.projectPath, "compare_to");
+          await checkWav(beforeAbs);
+        }
       } catch (err) {
         // Read before the game is asked to listen: a bad compare_to costs nothing (336's review).
         if (err instanceof WavError) {
@@ -488,17 +497,20 @@ export function registerRuntimeTools(server: McpServer, runtime: BridgeClient, p
       const notes: string[] = [];
       const got = r.frames / r.rate;
       const db = r.bus_volume_db === null ? null : Math.round(r.bus_volume_db * 100) / 100;
-      if (got < secs - 0.01) notes.push(`captured ${Math.round(got * 1000) / 1000} s of the ${secs} s asked for before the deadline`);
+      if (r.lost_capture) notes.push(`the game took the capture effect off the ${r.bus} bus (by replacing its bus layout, say) after ${Math.round(got * 1000) / 1000} s of the ${secs} s asked for, so the capture stopped there`);
+      else if (got < secs - 0.01) notes.push(`captured ${Math.round(got * 1000) / 1000} s of the ${secs} s asked for before the deadline`);
       if (got < 0.4) notes.push("shorter than one 400 ms loudness block, so the loudness readings are null");
       if (r.discarded_frames > 0) notes.push(`${r.discarded_frames} sample frames were lost: the game went longer than the capture's buffer holds (about 2.7 s at 48 kHz) without a frame`);
       if (r.bus_muted) notes.push(`the ${r.bus} bus is muted: none of this reaches the speakers`);
       else if (db === null) notes.push(`the ${r.bus} bus's volume is at minus infinity (a slider at zero): none of this reaches the speakers`);
       else if (db !== 0) notes.push(`the ${r.bus} bus's own volume (${db} dB) applies after this capture point, so it plays ${Math.abs(db)} dB ${db < 0 ? "quieter" : "louder"} than measured here`);
+      const after = r.after_tap ?? [];
+      if (after.length) notes.push(`the ${r.bus} bus runs ${after.join(", ")} after its startup tap, where this capture listens, so this capture does not hear ${after.length > 1 ? "them" : "it"}: the game added ${after.length > 1 ? "them" : "it"} after it started`);
       const soloed = r.soloed ?? [];
       if (soloed.length && !soloed.includes(r.bus)) notes.push(`${soloed.join(", ")} ${soloed.length > 1 ? "are" : "is"} soloed, so a bus that is not soloed, this one included, does not reach the speakers`);
       const logged = r.engine_log?.entries ?? [];
       if (logged.length) notes.push(`the game logged ${r.engine_log?.total ?? logged.length} warning(s) or error(s) while it listened; the first: ${logged[0].message}`);
-      return measureCapture(config, r, before, compare_to ?? null, {
+      return measureCapture(config, r, beforeAbs, compare_to ?? null, {
         bus: r.bus, bus_volume_db: db, bus_muted: r.bus_muted, discarded_frames: r.discarded_frames,
       }, notes);
     },

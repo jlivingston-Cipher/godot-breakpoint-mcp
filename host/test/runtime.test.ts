@@ -883,12 +883,13 @@ test("runtime_seed_rng warns that its stream is shared across both lanes", async
 // ------------------------------------------------- BP-0059: runtime_audio_capture ----
 
 /** What the game's `runtime.audio_capture` sends: interleaved float32 stereo, base64. */
-function captureHarness(reply: Record<string, unknown>) {
+function captureHarness(reply: Record<string, unknown>, during?: (root: string) => void) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "bp-cap-"));
   const calls: Array<BridgeCall & { timeoutMs?: number }> = [];
   const bridge = {
     async request(method: string, params: Record<string, unknown> = {}, timeoutMs?: number) {
       calls.push({ method, params, timeoutMs });
+      during?.(root);
       return reply;
     },
   };
@@ -947,6 +948,45 @@ test("runtime_audio_capture refuses a reply whose bytes do not match its frames,
   assert.equal(notWav.isError, true);
   assert.match(text(notWav), /compare_to could not be read as a WAV/);
   assert.equal(h.calls.length, 1, "an outside compare_to and one that is not a WAV were refused before the game was asked");
+});
+
+test("runtime_audio_capture says which effects run after the bus's startup tap, and says nothing when none do (BP-0070)", async () => {
+  const f = floats(0.5, 0.25);
+  const late = captureHarness({ rate: 48000, channels: 2, frames: f.frames, sample_bytes: 4, base64: f.base64, bus: "Fx", bus_volume_db: 0, bus_muted: false, discarded_frames: 0, soloed: [], tap: true, after_tap: ["AudioEffectAmplify", "AudioEffectReverb"] });
+  const r = await late.capture({ seconds: 0.5, bus: "Fx" });
+  assert.notEqual(r.isError, true, text(r));
+  const out = structured<{ notes: string[] }>(r);
+  assert.ok(out.notes.some((n) => /^the Fx bus runs AudioEffectAmplify, AudioEffectReverb after its startup tap.*does not hear them/.test(n)), JSON.stringify(out.notes));
+  const tapped = captureHarness({ rate: 48000, channels: 2, frames: f.frames, sample_bytes: 4, base64: f.base64, bus: "Fx", bus_volume_db: 0, bus_muted: false, discarded_frames: 0, soloed: [], tap: true, after_tap: [] });
+  const quiet = structured<{ notes: string[] }>(await tapped.capture({ seconds: 0.5, bus: "Fx" }));
+  assert.deepEqual(quiet.notes, [], `a tap at the end of its chain hears every effect, so there is nothing to say: ${JSON.stringify(quiet.notes)}`);
+});
+
+test("runtime_audio_capture keeps the capture and names compare_to when compare_to stops being a WAV while the game listens (341's review)", async () => {
+  const f = floats(0.5, 0.25);
+  const ref = Buffer.from(Buffer.from(f.base64, "base64"));
+  const h = captureHarness(
+    { rate: 48000, channels: 2, frames: f.frames, sample_bytes: 4, base64: f.base64, bus: "Master", bus_volume_db: 0, bus_muted: false, discarded_frames: 0, soloed: [] },
+    (root) => fs.writeFileSync(path.join(root, "before.wav"), "not a wav any more"),
+  );
+  const head = Buffer.alloc(44);
+  head.write("RIFF", 0, "latin1"); head.writeUInt32LE(36 + ref.length, 4); head.write("WAVE", 8, "latin1"); head.write("fmt ", 12, "latin1");
+  head.writeUInt32LE(16, 16); head.writeUInt16LE(3, 20); head.writeUInt16LE(2, 22); head.writeUInt32LE(48000, 24); head.writeUInt32LE(48000 * 8, 28);
+  head.writeUInt16LE(8, 32); head.writeUInt16LE(32, 34); head.write("data", 36, "latin1"); head.writeUInt32LE(ref.length, 40);
+  fs.writeFileSync(path.join(h.root, "before.wav"), Buffer.concat([head, ref]));
+  const r = await h.capture({ seconds: 0.5, compare_to: "res://before.wav" });
+  assert.equal(r.isError, true);
+  assert.match(text(r), /compare_to read as a WAV before it ran and not when it was measured/);
+  const kept = /kept at res:\/\/(\S+?\/sound\.wav)/.exec(text(r));
+  assert.ok(kept && fs.existsSync(path.join(h.root, kept[1])), `the capture is kept, not deleted: ${text(r)}`);
+});
+
+test("runtime_audio_capture says the game took the capture off mid-listen, instead of blaming a deadline (BP-0070, 341's review)", async () => {
+  const f = floats(0.5, 0.25);
+  const h = captureHarness({ rate: 48000, channels: 2, frames: f.frames, sample_bytes: 4, base64: f.base64, bus: "Fx", bus_volume_db: 0, bus_muted: false, discarded_frames: 0, soloed: [], tap: true, after_tap: [], lost_capture: true });
+  const out = structured<{ notes: string[] }>(await h.capture({ seconds: 2, bus: "Fx" }));
+  assert.ok(out.notes.some((n) => /^the game took the capture effect off the Fx bus .* after 0\.5 s of the 2 s asked for/.test(n)), JSON.stringify(out.notes));
+  assert.ok(!out.notes.some((n) => /before the deadline/.test(n)), JSON.stringify(out.notes));
 });
 
 test("runtime_audio_capture says a minus-infinity bus volume in words instead of failing the reply", async () => {

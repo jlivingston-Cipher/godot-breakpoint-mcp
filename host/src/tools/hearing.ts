@@ -44,23 +44,24 @@ import type { Config } from "../config.js";
 import { failPath } from "./lsp-common.js";
 import { resolveInsideProject, resolveExistingFile } from "../paths.js";
 import { spawnGuarded } from "../spawn-guard.js";
-import {
-  parseWav, analyze, compare, spectrogram, stack, encodePng, demuxAviSound, WavError, AviError, SPECTROGRAM_LEGEND,
-  type Pcm, type Raster, type AviSound,
-} from "../hearing.js";
+import { demuxAviSound, WavError, AviError, SPECTROGRAM_LEGEND, type AviSound } from "../hearing.js";
+import { offThread } from "../measure.js";
 
 /** Where recordings go, project-relative: under `.godot/`, which Godot's own .gitignore keeps out of VCS. */
 const RECORDINGS_DIR = ".godot/breakpoint/recordings";
 const MAX_RECORD_SECONDS = 120;
-/** A WAV larger than this is refused rather than read into memory (120 s of 8-channel 32-bit is ~184 MB). */
+/** A movie's sound larger than this is refused rather than read into memory (120 s of 8-channel 32-bit is ~184 MB). */
 const MAX_WAV_BYTES = 256 * 1024 * 1024;
 
 const refuse = (text: string) => ({ isError: true as const, content: [{ type: "text" as const, text }] });
 
-export function readPcm(abs: string): Pcm {
-  const size = fs.statSync(abs).size;
-  if (size > MAX_WAV_BYTES) throw new WavError(`it is ${Math.round(size / 1048576)} MB, over the ${MAX_WAV_BYTES / 1048576} MB this tool reads`);
-  return parseWav(fs.readFileSync(abs));
+/**
+ * 🆕 BP-0062 (1.95.0): read and parse a WAV on a thread of its own (measure.ts), so a bad
+ * `compare_to` is refused before anything runs without the server's thread reading the file.
+ */
+export async function checkWav(abs: string): Promise<void> {
+  const r = await offThread({ op: "check", path: abs });
+  if (!r.ok) throw r.wav ? new WavError(r.message) : new Error(r.message);
 }
 
 /** The sound of a Movie Maker AVI, read a chunk at a time from disk (a long movie is gigabytes of pictures). */
@@ -78,22 +79,39 @@ function readAviSound(abs: string): AviSound {
   }
 }
 
+/**
+ * 🆕 341's review arm: `compare_to` was read as a WAV before anything ran and could not be read when
+ * it was measured, so it changed in between. The new recording is fine, and is kept.
+ */
+class CompareToChanged extends WavError {}
+
+/** Say that compare_to changed, keeping the new WAV, instead of blaming and deleting it. */
+const compareToChanged = (tool: string, err: Error, wav: string) => refuse(
+  `${tool}: compare_to read as a WAV before it ran and not when it was measured (${err.message}), so it changed meanwhile. ` +
+  `The new sound is kept at ${wav}: pass it to audio_analyze with compare_to once that file is a WAV again.`);
+
 /** Numbers as structured content and text, the picture as an image block, the legend beside it. */
-function reply(structured: Record<string, unknown>, picture: Raster) {
+function reply(structured: Record<string, unknown>, png: Uint8Array) {
   return {
     content: [
       { type: "text" as const, text: `${JSON.stringify(structured, null, 2)}\n\n${SPECTROGRAM_LEGEND}` },
-      { type: "image" as const, data: encodePng(picture).toString("base64"), mimeType: "image/png" },
+      { type: "image" as const, data: Buffer.from(png).toString("base64"), mimeType: "image/png" },
     ],
     structuredContent: structured,
   };
 }
 
-/** Measure `pcm`; with `before`, compare (after minus before) and stack the pictures, before on top. */
-function measure(pcm: Pcm, before: Pcm | null) {
-  const analysis = analyze(pcm);
-  if (!before) return { analysis, comparison: null, picture: spectrogram(pcm) };
-  return { analysis, comparison: compare(analyze(before), analysis), picture: stack(spectrogram(before), spectrogram(pcm)) };
+/**
+ * Measure the WAV at `abs`; with `beforeAbs`, compare (after minus before) and stack the pictures,
+ * before on top. 🆕 BP-0062 (1.95.0): on a thread of its own, so the server answers other calls
+ * meanwhile. A WAV that cannot be read comes back as a WavError, as it did in-thread.
+ */
+async function measure(abs: string, beforeAbs: string | null) {
+  const r = await offThread({ op: "measure", path: abs, before: beforeAbs });
+  if (!r.ok && r.wav && r.file === "before") throw new CompareToChanged(r.message);
+  if (!r.ok) throw r.wav ? new WavError(r.message) : new Error(r.message);
+  if (r.op !== "measure") throw new Error("the measuring thread answered a check for a measurement");
+  return r;
 }
 
 interface Run { code: number | null; timedOut: boolean; log: string; spawnFailed: string | null }
@@ -158,8 +176,8 @@ export interface CapturedSound {
  * way, so a capture and a recording compare with `compare_to` in either direction. A reply whose
  * byte count does not match the frames it claims is refused rather than measured short.
  */
-export function measureCapture(
-  cfg: Config, sound: CapturedSound, before: Pcm | null, compareTo: string | null,
+export async function measureCapture(
+  cfg: Config, sound: CapturedSound, beforeAbs: string | null, compareTo: string | null,
   fields: Record<string, unknown>, notes: string[],
 ) {
   const samples = Buffer.from(sound.base64, "base64");
@@ -176,7 +194,7 @@ export function measureCapture(
   const wavAbs = path.join(dir, "sound.wav");
   fs.writeFileSync(wavAbs, floatWav(samples, sound.rate, sound.channels, sound.sample_bytes * 8));
   try {
-    const m = measure(readPcm(wavAbs), before);
+    const m = await measure(wavAbs, beforeAbs);
     return reply({
       wav: `res://${RECORDINGS_DIR}/${path.basename(dir)}/sound.wav`,
       ...fields,
@@ -184,10 +202,11 @@ export function measureCapture(
       compare_to: compareTo,
       comparison: m.comparison,
       notes,
-    }, m.picture);
+    }, m.png);
   } catch (err) {
+    if (err instanceof CompareToChanged) return compareToChanged("runtime_audio_capture", err, `res://${RECORDINGS_DIR}/${path.basename(dir)}/sound.wav`);
     if (err instanceof WavError) {
-      // compare_to was read before the game was asked, so this is the capture itself (a mix rate
+      // compare_to was read before the game was asked and again when measured, so this is the capture itself (a mix rate
       // under 8 kHz, say); nothing worth keeping was written.
       fs.rmSync(dir, { recursive: true, force: true });
       return refuse(`runtime_audio_capture: the game's capture could not be measured (${err.message}). Run the game at Godot's default mix rate, then capture again.`);
@@ -219,7 +238,7 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
       },
     },
     async ({ scene, seconds, fps, keep_frames, compare_to, user_args }) => {
-      let beforeAbs: string | null = null, before: Pcm | null = null;
+      let beforeAbs: string | null = null;
       // A scene is a path, and it reaches Godot's argv: one spelled like an option would be read as one.
       if (scene?.startsWith("-")) return refuse(`godot_record: scene ${JSON.stringify(scene)} reads as a command-line option. Pass a res:// path to a scene.`);
       try {
@@ -230,7 +249,7 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
       }
       // 🆕 336's review: read compare_to before Godot runs, so a bad one costs no recording.
       try {
-        if (beforeAbs) before = readPcm(beforeAbs);
+        if (beforeAbs) await checkWav(beforeAbs);
       } catch (err) {
         if (err instanceof WavError) {
           return refuse(`godot_record: compare_to could not be read as a WAV (${err.message}). Pass a PCM or float WAV, such as an earlier recording's sound.wav.`);
@@ -284,7 +303,7 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
         cutShort = s.truncated;
       }
       try {
-        const m = measure(readPcm(wavAbs), before);
+        const m = await measure(wavAbs, beforeAbs);
         // A recording that stopped early must not read as a short success (334's review).
         const notes: string[] = [];
         const expected = frames / rate, got = m.analysis.duration_s, sr = m.analysis.sample_rate;
@@ -316,10 +335,11 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
           compare_to: compare_to ?? null,
           comparison: m.comparison,
           notes,
-        }, m.picture);
+        }, m.png);
       } catch (err) {
+        if (err instanceof CompareToChanged) return compareToChanged("godot_record", err, `res://${RECORDINGS_DIR}/${path.basename(dir)}/sound.wav`);
         if (err instanceof WavError) {
-          // compare_to was read before Godot ran, so this is the recording itself.
+          // compare_to was read before Godot ran and again when measured, so this is the recording itself.
           drop();
           return refuse(`godot_record: the recording could not be measured (${err.message}). Record again with keep_frames to take Movie Maker's own WAV.`);
         }
@@ -349,8 +369,8 @@ export function registerHearingTools(server: McpServer, cfg: Config): void {
         return failPath(err);
       }
       try {
-        const m = measure(readPcm(abs), beforeAbs ? readPcm(beforeAbs) : null);
-        return reply({ path: p, analysis: m.analysis, compare_to: compare_to ?? null, comparison: m.comparison }, m.picture);
+        const m = await measure(abs, beforeAbs);
+        return reply({ path: p, analysis: m.analysis, compare_to: compare_to ?? null, comparison: m.comparison }, m.png);
       } catch (err) {
         if (err instanceof WavError) {
           return refuse(`audio_analyze: a file could not be read as a WAV (${err.message}). Pass a PCM or float WAV, such as the sound.wav godot_record writes.`);

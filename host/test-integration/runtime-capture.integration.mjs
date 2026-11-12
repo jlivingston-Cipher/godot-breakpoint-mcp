@@ -33,10 +33,12 @@ import { Population } from "./_population.mjs";
 // an arm that quietly stopped asserting is what that floor catches.
 // 🆕 336 — AUDIO_CAP joins it (BP-0059): runtime_audio_capture against the same live game, on
 // every engine in the matrix. No arm: the capture effect and the async lane exist on every 4.x.
+// 🆕 341 — AUDIO_CAP widens (BP-0070): a bus that carries effects, heard through its startup tap,
+// and the game's own recording and spectrum instance read back undisturbed. Eight claims, no arm.
 const population = new Population("D6_CAP", {
   families: ["D6_CAP_RESULT", "D1A_ECHO_RESULT", "AUDIO_CAP_RESULT"],
   scope: 1,
-  claims: 15,
+  claims: 23,
 });
 // 🆕 336 — ANNOTATED, SO THIS FILE PAYS NO `TS2775` (the hearing probe's fix, 335): `checkJs` will
 // not narrow through an assertion function reached by an un-annotated binding.
@@ -199,6 +201,35 @@ assert.ok(noBus.isError === true && /no_bus/.test(noBus.content?.[0]?.text ?? ""
   `an unknown bus is refused naming the game's buses: ${noBus.content?.[0]?.text}`);
 fs.rmSync(path.dirname(path.join(cfg.projectPath, heard.wav.slice("res://".length))), { recursive: true, force: true });
 console.log(`AUDIO_CAP_RESULT ${heard.analysis.duration_s} s at ${heard.analysis.sample_rate} Hz x${heard.analysis.channels}, ${heard.analysis.bits}-bit, peak ${heard.analysis.peak_dbfs}`);
+
+// ── 🆕 341 (BP-0070) — A BUS WITH EFFECTS, HEARD THROUGH ITS STARTUP TAP, AND THE GAME UNDISTURBED ──
+// `example/default_bus_layout.tres` gives the game an Fx bus carrying a SpectrumAnalyzer and an
+// AudioEffectRecord, so the bridge puts a switched-off capture at the end of Fx before the game runs.
+// `res://tests/tap_probe.tscn`, instanced into this live game, adds an Amplify after the tap, starts
+// the recording, holds the spectrum instance and plays the hearing fixture's tone on Fx. Through
+// 1.23.0 this capture was refused (`bus_has_effects`); a capture that added and removed an effect
+// instead stops the recording and detaches the instance (336's review arm; 341's control on 4.2.2
+// and 4.7.1), and that is what `state()` reads. A bus added after the game started has no tap.
+await call("runtime_node_add", { parent: ".", scene: "res://tests/tap_probe.tscn", name: "TapProbe", confirm: true });
+const armed = await call("runtime_call_method", { path: "TapProbe", method: "arm", confirm: true });
+const tapped = await call("runtime_audio_capture", { seconds: 0.5, bus: "Fx" });
+const held = await call("runtime_call_method", { path: "TapProbe", method: "state", confirm: true });
+await call("runtime_call_method", { path: "TapProbe", method: "late_bus", confirm: true });
+const lateBus = await tools.get("runtime_audio_capture")({ seconds: 0.2, bus: "Late" }, {});
+await call("runtime_call_method", { path: "TapProbe", method: "disarm", confirm: true });
+assert.equal(armed.return?.recording, true, `the fixture's AudioEffectRecord is recording before the capture: ${JSON.stringify(armed)}`);
+assert.equal(tapped.analysis.duration_s, 0.5, `the tap's capture holds ${tapped.analysis.duration_s} s, not the 0.5 s asked for`);
+assert.ok(tapped.analysis.peak_dbfs > -12.5 && tapped.analysis.peak_dbfs < -11.5,
+  `Fx carries the fixture's -12.04 dBFS tone through its two effects to the tap: ${tapped.analysis.peak_dbfs}`);
+assert.ok(tapped.notes.some((n) => /runs AudioEffectAmplify after its startup tap/.test(n)),
+  `the effect the game added after the tap is named as unheard: ${JSON.stringify(tapped.notes)}`);
+assert.equal(held.return?.recording, true, "the game's AudioEffectRecord still records after the capture: nothing on Fx was rebuilt");
+assert.equal(held.return?.same_spectrum, true, "the SpectrumAnalyzer instance the game holds is still the one Fx runs");
+assert.equal(held.return?.tap_on, false, "the tap is switched off again once the capture returns");
+assert.ok(lateBus.isError === true && /bus_has_effects/.test(lateBus.content?.[0]?.text ?? "") && /AudioEffectReverb/.test(lateBus.content?.[0]?.text ?? ""),
+  `a bus added after the game started has no tap, and is refused naming its effect: ${lateBus.content?.[0]?.text}`);
+fs.rmSync(path.dirname(path.join(cfg.projectPath, tapped.wav.slice("res://".length))), { recursive: true, force: true });
+console.log(`AUDIO_CAP_RESULT tap ${tapped.analysis.duration_s} s on Fx, peak ${tapped.analysis.peak_dbfs}, recording ${held.return?.recording}, same instance ${held.return?.same_spectrum}`);
 
 runtime.close();
 population.reportOrDie();

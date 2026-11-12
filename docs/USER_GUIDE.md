@@ -5,7 +5,7 @@ Welcome. This guide walks you, start to finish, through installing and using
 It is written for a Godot developer who has never seen the tool before. No prior
 knowledge of the Model Context Protocol (MCP) is assumed.
 
-- **Version:** host 1.94.0 · addon 1.23.0
+- **Version:** host 1.95.0 · addon 1.24.0
 - **License:** MIT
 - **What it exposes:** full 298 tools (secure-default 285 with the privileged group off) + 6 MCP resources
 - **Requires:** Node.js ≥ 18 and Godot 4.2+ (4.4+ recommended)
@@ -1102,17 +1102,32 @@ the earlier recording's `wav` as `compare_to` after a change, and the reply repo
 metric by metric and band by band — "the 4 kHz octave rose 30 dB and 2,000 samples now clip" rather
 than "it sounds harsher". `audio_analyze` does the same for any WAV already in the project.
 
-**Listening to the game you are playing** (host 1.94.0, addon 1.23.0). Some sounds only happen
+**Listening to the game you are playing** (host 1.94.0, addon 1.23.0; buses with effects since host 1.95.0, addon 1.24.0). Some sounds only happen
 after you have driven the game somewhere — a boss fight, a menu, a combo — which a recording from
 the start of a scene cannot reach. With the game running, `runtime_audio_capture` listens for a few
 seconds of real time (three by default, ten at most) on an audio bus (`Master` unless you name
 another) and returns the same numbers and picture, and takes `compare_to` the same way. It hears
 the bus before its own volume, mute and solo; when any of them would change what you hear, the
-reply says so in words. It only listens on a bus with no effects of its own: adding a capture to a
-bus makes Godot rebuild every effect on it, which would cut a reverb tail or stop a recording in
-your game, so a bus with effects is refused and named — capture a bus that sends to it, or record
-the whole mix with `godot_record`. Because it is real time, two captures of one moment are close
-rather than identical — for a sample-for-sample before and after, record with `godot_record`.
+reply says so in words. Adding a capture to a bus makes Godot rebuild every effect on it, which
+would cut a reverb tail or stop a recording in your game, so since addon 1.24.0 the addon adds its
+capture when the game starts instead: when the runtime bridge is created (as an autoload, before
+any autoload's `_ready`), each bus that carries effects gets one switched-off capture at the end of
+its chain, and a capture switches it on and off, which rebuilds nothing. Your game sounds the same
+— an effect that is switched off is not run — but its code can see one extra effect on those buses
+during runs with the addon (`AudioServer.get_bus_effect_count` is one higher, and
+`generate_bus_layout` includes it); add `breakpoint_mcp/runtime/audio_tap=false` to
+`project.godot` (or in Project Settings, with Advanced Settings on) to leave it out. Putting the
+capture in is itself a rebuild, so a bus your game is already using at that moment is left as it
+is: one that is sounding, one whose `AudioEffectRecord` is recording, or one whose effect instance
+your code already holds (an autoload listed above `BreakpointRuntimeBridge` can have done that in
+its `_init`). List `BreakpointRuntimeBridge` first among the autoloads and nothing of yours runs
+before it. A bus that had no effects at startup still gets a capture added and removed for the
+length of a listen. A bus that has effects and no tap — left alone at startup, or created or
+replaced by your game after it started — is refused, its effects named and the reason given:
+capture a bus that sends to it, or record the whole mix with `godot_record`. Effects your game
+added after the tap run after the capture point, and the reply names them. Because it is real time, two captures of
+one moment are close rather than identical — for a sample-for-sample before and after, record
+with `godot_record`.
 
 ### D. Running headless tests
 

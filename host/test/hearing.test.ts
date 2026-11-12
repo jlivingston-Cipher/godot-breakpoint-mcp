@@ -3,6 +3,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import zlib from "node:zlib";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { runJob, offThread } from "../src/measure.js";
 import { parseWav, analyze, compare, kWeighting, spectrogram, stack, encodePng, WavError, OCTAVES, channelWeights, demuxAviSound, AviError } from "../src/hearing.js";
 
 type Kind = "u8" | "i16" | "i24" | "i32" | "f32";
@@ -312,4 +316,46 @@ test("compare says when the two files differ in bit depth (a 16-bit AVI take aga
   const c = compare(analyze(parseWav(wav([s, s], 48000, "i32"))), analyze(parseWav(wav([s, s], 48000, "i16"))));
   assert.deepEqual(c.notes, ["bit depths differ: 32 vs 16"]);
   assert.ok(within(c.delta.peak_dbfs, 0, 0.001), `requantising alone moves the peak by ${c.delta.peak_dbfs} dB, not more than 0.001`);
+});
+
+// 🆕 BP-0062 (1.95.0) — the measurement runs on a thread of its own, so the server's thread keeps
+// answering. Ten seconds of eight channels measured in-thread blocks this thread for the whole
+// measurement; off it, the longest this thread waits is a small fraction of that. The answer is the
+// in-thread one exactly, picture included, and a file that is not a WAV comes back as one.
+test("a measurement off the server's thread answers what the in-thread one answers, while the thread stays free", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bp-measure-"));
+  try {
+    const s = sine(1000, 0.25, 10);
+    const file = path.join(dir, "long.wav");
+    fs.writeFileSync(file, wav([s, s, s, s, s, s, s, s], 48000, "f32"));
+    const t0 = performance.now();
+    const inThread = runJob({ op: "measure", path: file, before: null });
+    const blocked = performance.now() - t0;
+    let longest = 0, last = performance.now();
+    const tick = setInterval(() => { const now = performance.now(); longest = Math.max(longest, now - last); last = now; }, 5);
+    const off = await offThread({ op: "measure", path: file, before: null });
+    clearInterval(tick);
+    longest = Math.max(longest, performance.now() - last);
+    assert.ok(off.ok && off.op === "measure" && inThread.ok && inThread.op === "measure", JSON.stringify(off).slice(0, 300));
+    assert.deepEqual(off.analysis, inThread.analysis, "the worker's numbers are the in-thread ones");
+    assert.ok(Buffer.from(off.png).equals(Buffer.from(inThread.png)), "the worker's picture is the in-thread one, byte for byte");
+    assert.ok(longest < blocked / 3, `this thread waited at most ${Math.round(longest)} ms while a measurement that blocks it for ${Math.round(blocked)} ms ran`);
+    // 341's review: jobs queue, one at a time, as in-thread; a short job asked for second answers second.
+    const short = path.join(dir, "short.wav");
+    fs.writeFileSync(short, wav([sine(1000, 0.25, 0.1)], 48000, "f32"));
+    const order: string[] = [];
+    await Promise.all([
+      offThread({ op: "measure", path: file, before: null }).then(() => order.push("long")),
+      offThread({ op: "measure", path: short, before: null }).then(() => order.push("short")),
+    ]);
+    assert.deepEqual(order, ["long", "short"], "the second job waited for the first instead of running beside it");
+    fs.writeFileSync(path.join(dir, "notes.txt"), "not a wav");
+    const bad = await offThread({ op: "check", path: path.join(dir, "notes.txt") });
+    assert.equal(bad.ok, false);
+    assert.equal(!bad.ok && bad.wav, true, "a file that is not a WAV comes back as a WAV error, as it did in-thread");
+    const which = await offThread({ op: "measure", path: file, before: path.join(dir, "notes.txt") });
+    assert.equal(!which.ok && which.file, "before", "a failure says which file it was reading");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

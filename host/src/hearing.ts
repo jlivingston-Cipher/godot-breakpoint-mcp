@@ -407,7 +407,7 @@ const SILENCE = 0.001; // −60 dBFS
 const WELCH_N = 8192;
 
 interface ChannelReading { peak_dbfs: number | null; rms_dbfs: number | null; dc_offset: number }
-interface Analysis {
+export interface Analysis {
   duration_s: number;
   sample_rate: number;
   channels: number;
@@ -551,7 +551,7 @@ export function analyze(pcm: Pcm): Analysis {
 
 // ---- comparison -------------------------------------------------------------------------------
 
-interface Comparison {
+export interface Comparison {
   delta: Record<string, number | null>;
   band_delta_db: Array<{ hz: number; db: number | null }>;
   band_mean_abs_diff_db: number | null;
@@ -620,7 +620,7 @@ function colour(t: number): [number, number, number] {
   return [252, 255, 164];
 }
 
-export interface Raster { width: number; height: number; rgb: Uint8Array }
+interface Raster { width: number; height: number; rgb: Uint8Array }
 
 const STRIP = 6;
 /** A log-frequency spectrogram, `width`×(`height`+6) RGB, the top 6 rows the clipping strip. */

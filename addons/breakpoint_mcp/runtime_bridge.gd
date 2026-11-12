@@ -26,6 +26,8 @@ extends Node
 ##         bridge.name = "BreakpointRuntimeBridge"
 ##         get_tree().root.add_child.call_deferred(bridge)
 ## and the bridge then listens only with BREAKPOINT_RUNTIME=1 or `--breakpoint-runtime`.
+## (BP-0070: created before the game's first frame, it taps the audio buses the game is not yet
+## using; create it before your own audio code runs and every bus with effects gets its tap.)
 
 ## The addon version this GAME is running, answered on `ping`.
 ##
@@ -36,7 +38,7 @@ extends Node
 ## and the process that is already running keeps the addon it loaded. Held in lockstep
 ## with `plugin.cfg` and with `operations.gd`'s copy by contract_check check 14, which
 ## exists because two of those literals disagreed for two releases.
-const ADDON_VERSION := "1.23.0"
+const ADDON_VERSION := "1.24.0"
 const Codec := preload("res://addons/breakpoint_mcp/variant_json.gd")
 const Remedies := preload("res://addons/breakpoint_mcp/error_remedies.gd")
 const DEFAULT_PORT := 9081
@@ -88,6 +90,10 @@ const PauseLatch := preload("res://addons/breakpoint_mcp/pause_latch.gd")
 # F4: methods dispatched on the async lane (they await frames); see _handle_line / _dispatch_async.
 # 🆕 BP-0059 (1.23.0): runtime.audio_capture listens for seconds of real time, a frame at a time.
 const ASYNC_METHODS := ["runtime.step_frames", "runtime.audio_capture"]
+## 🆕 BP-0070 (addon 1.24.0): the startup tap's name, by which a capture finds it, and the project
+## setting that leaves it out. See _install_audio_taps.
+const AUDIO_TAP_NAME := "breakpoint_tap"
+const AUDIO_TAP_SETTING := "breakpoint_mcp/runtime/audio_tap"
 # 🆕 BP-0041 (1.19.0): the input kinds runtime.inject_input answers, in the order the
 # refusal lists them. `pointer` alone rides the async lane (a tap or drag spans frames).
 const INPUT_KINDS := ["action", "key", "mouse_button", "mouse_motion", "joypad_button", "joypad_motion", "pointer", "midi"]
@@ -166,6 +172,27 @@ func _policy_facts() -> Dictionary:
 		"strict": BridgeSecret.runtime_strict(ProjectSettings.get_setting(BridgeSecret.STRICT_SETTING, false)),
 		"switch": BridgeSecret.runtime_switch_on(OS.get_environment(BridgeSecret.SWITCH_ENV), OS.get_cmdline_user_args()),
 	}
+
+
+## 🆕 BP-0070 (addon 1.24.0): the startup tap goes in here, not in _ready. Godot instantiates every
+## autoload before it adds any of them to the tree, so this runs before any autoload's _ready, and the
+## bus layout is already loaded (341, on 4.2.2 and 4.7.1: Master's two effects were present here).
+## It is NOT before every line of game code: an autoload listed above this one has already run its
+## _init and member initialisers, and a game in strict mode may create the bridge from a _ready
+## (341's review arm: an instance held there was detached, a recording stopped). So _install_audio_taps
+## leaves alone any bus the game is already using. A bridge created after the first frame installs none.
+func _init() -> void:
+	if Engine.get_process_frames() != 0:
+		return
+	# Read with defaults: a subclass that fills its facts after construction (the smokes'
+	# ExportedRuntimeBridge) answers {} here, which reads as a bridge that will not listen.
+	var f := _policy_facts()
+	@warning_ignore("unsafe_call_argument")
+	var p := BridgeSecret.runtime_listen_policy(bool(f.get("editor_build", false)), bool(f.get("debug_build", false)), str(f.get("exported_optin", "")), str(f.get("env_secret", "")), bool(f.get("strict", false)), bool(f.get("switch", false)))
+	@warning_ignore("unsafe_call_argument")
+	var wanted := bool(p["listen"]) and bool(ProjectSettings.get_setting(AUDIO_TAP_SETTING, true))
+	if wanted:
+		_install_audio_taps()
 
 
 func _ready() -> void:
@@ -1878,6 +1905,88 @@ func _step_frames(params: Dictionary) -> Dictionary:
 
 ## Buses with a capture in flight, by name (BP-0059): one capture per bus at a time.
 var _capturing := {}
+## Whether _init put the startup taps in (BP-0070), so a refusal can say why a bus has none.
+var _taps_installed := false
+## Buses _install_audio_taps left alone, by name, and why (BP-0070).
+var _tap_skipped := {}
+
+
+## 🆕 BP-0070 (addon 1.24.0, ruled (a) 2026-11-11) — THE STARTUP TAP. A capture listens with an
+## AudioEffectCapture at the end of a bus, and adding or removing ANY bus effect makes Godot rebuild
+## every effect on that bus (336's review arm: a recording AudioEffectRecord stopped and lost its
+## take, a SpectrumAnalyzer instance the game held froze). Switching an effect on or off rebuilds
+## nothing: `set_bus_effect_enabled` flips one flag, and the mixer skips an effect that is off. So
+## before the game runs, each bus that carries effects gets one switched-off capture at the end of
+## its chain, and a capture switches it on for its seconds and off again (341, on 4.2.2 and 4.7.1:
+## the recording kept recording and the game's spectrum instance stayed the same object).
+##   * The game sounds the same: an effect that is off is not processed.
+##   * Its code can see it: `get_bus_effect_count` is one higher on those buses, and
+##     `generate_bus_layout` includes it. `breakpoint_mcp/runtime/audio_tap=false` leaves it out.
+##   * A bus with no effects gets none. It has nothing to rebuild, so a capture still adds and
+##     removes one there, and a game that adds its first effect at runtime keeps it at index 0 —
+##     except during such a capture, when the capture is at 0 and an effect the game adds is rebuilt
+##     when the capture comes off (as in 1.23.0).
+##   * A tap already on a bus (a layout the game saved during an earlier run) is adopted, not doubled.
+##   * A bus the game is already using is left as it is (_tap_hazard), because putting the tap in is
+##     itself the rebuild; a capture there is refused, saying why.
+func _install_audio_taps() -> void:
+	for b: int in AudioServer.bus_count:
+		if AudioServer.get_bus_effect_count(b) == 0:
+			continue
+		var hazard := _tap_hazard(b)
+		if hazard != "":
+			_tap_skipped[AudioServer.get_bus_name(b)] = hazard
+			continue
+		var at := _tap_index(b)
+		if at < 0:
+			var tap := AudioEffectCapture.new()
+			tap.resource_name = AUDIO_TAP_NAME
+			# Drained every frame; two seconds (rounded up to a power of two of frames) rides out a hitch.
+			tap.buffer_length = 2.0
+			AudioServer.add_bus_effect(b, tap)
+			at = AudioServer.get_bus_effect_count(b) - 1
+		AudioServer.set_bus_effect_enabled(b, at, false)
+	_taps_installed = true
+
+
+## Why adding the tap to `bus` now would disturb the game, or "" when it would not. Adding any effect
+## re-instantiates every effect on the bus, so the bus is left alone when it is sounding (a tail would
+## be cut), when an AudioEffectRecord on it is recording, when one of the game's own captures holds
+## samples, or when game code holds one of its effect instances. A held instance is read off the
+## instance's reference count: the AudioServer holds one and this function one, and an
+## AudioEffectRecord one more (its current instance); anything above that is someone else (341, on
+## 4.2.2 and 4.7.1: 2, 3, and one more with an autoload holding the instance). An effect class this
+## does not know that also keeps its own instance reads as held: the bus is left alone, never rebuilt.
+func _tap_hazard(bus: int) -> String:
+	for ch: int in AudioServer.get_bus_channels(bus):
+		var peak := maxf(AudioServer.get_bus_peak_volume_left_db(bus, ch), AudioServer.get_bus_peak_volume_right_db(bus, ch))
+		if peak > -200.0:
+			return "it was already sounding"
+	for i: int in AudioServer.get_bus_effect_count(bus):
+		var fx := AudioServer.get_bus_effect(bus, i)
+		if fx == null:
+			continue
+		var rec := fx as AudioEffectRecord
+		if rec != null and rec.is_recording_active():
+			return "its AudioEffectRecord was recording"
+		var own := fx as AudioEffectCapture
+		if own != null and own.resource_name != AUDIO_TAP_NAME and own.get_frames_available() > 0:
+			return "an AudioEffectCapture of the game's held samples"
+		var expected := 3 if rec != null else 2
+		for ch: int in AudioServer.get_bus_channels(bus):
+			var inst := AudioServer.get_bus_effect_instance(bus, i, ch)
+			if inst != null and inst.get_reference_count() > expected:
+				return "the game's code held its %s instance" % fx.get_class()
+	return ""
+
+
+## The startup tap's place on a bus, or -1: the last AudioEffectCapture carrying the tap's name.
+func _tap_index(bus: int) -> int:
+	for i: int in range(AudioServer.get_bus_effect_count(bus) - 1, -1, -1):
+		var fx := AudioServer.get_bus_effect(bus, i)
+		if fx is AudioEffectCapture and fx.resource_name == AUDIO_TAP_NAME:
+			return i
+	return -1
 
 
 ## 🆕 BP-0059 (addon 1.23.0) — what the running game is playing, for a few seconds: the hearing
@@ -1887,12 +1996,15 @@ var _capturing := {}
 ## AudioEffectCapture goes on the END of the named bus's effect chain, collects what reaches it in
 ## real time, and is taken off again. It hears every effect on that bus but not the bus's own volume,
 ## mute or solo, which Godot applies after the effects, so those ride back for the host to say.
+## 🆕 BP-0070 (1.24.0): on a bus that carried effects when the game started, the capture is that
+## bus's startup tap (_install_audio_taps), switched on and off; nothing is added or removed.
 ##
 ## 🔴 WHAT IT REFUSES, AND WHY, MEASURED BY 336's REVIEW ARM ON 4.2.2 AND 4.7.1:
-##   * a bus that already carries effects — `add_bus_effect` and `remove_bus_effect` make Godot
-##     rebuild EVERY effect instance on the bus: a recording AudioEffectRecord stopped and lost its
-##     take, a SpectrumAnalyzer instance the game held froze, reverb and delay tails restarted. A tool
-##     that listens may not do that to a game, so it names the effects and refuses.
+##   * a bus that carries effects and no startup tap — `add_bus_effect` and `remove_bus_effect` make
+##     Godot rebuild EVERY effect instance on the bus: a recording AudioEffectRecord stopped and lost
+##     its take, a SpectrumAnalyzer instance the game held froze, reverb and delay tails restarted. A
+##     tool that listens may not do that to a game, so it names the effects and refuses. (The bus had
+##     no effects when the game started, the game replaced its layout since, or the tap is off.)
 ##   * a second capture on the same bus — it would be that rebuild, and would splice the first one's
 ##     buffer (three of four overlapping captures came back with discontinuities).
 ##   * surround output — every speaker pair writes into the capture's one buffer, so a 5.1 capture
@@ -1914,39 +2026,80 @@ func _audio_capture(params: Dictionary) -> Dictionary:
 		return _err("not_stereo", "The game mixes in surround (speaker mode %d), and a capture effect writes every speaker pair into one buffer, so what it collects is not one signal." % AudioServer.get_speaker_mode())
 	if AudioServer.is_bus_bypassing_effects(bus):
 		return _err("bus_bypassed", "The %s bus bypasses its effects, so a capture effect on it would hear nothing." % bus_name)
+	var tap_at := _tap_index(bus)
 	var held := PackedStringArray()
 	for i: int in AudioServer.get_bus_effect_count(bus):
-		var fx := AudioServer.get_bus_effect(bus, i)
-		held.append(fx.get_class() if fx != null else "an empty slot")
-	if not held.is_empty():
-		return _err("bus_has_effects", "The %s bus carries %d effect(s): %s. Adding a capture effect makes Godot rebuild every effect on the bus, which restarts reverb and delay tails, stops an AudioEffectRecord that is recording, and detaches any effect instance the game holds." % [bus_name, held.size(), ", ".join(held)])
+		if i != tap_at:
+			var fx := AudioServer.get_bus_effect(bus, i)
+			held.append(fx.get_class() if fx != null else "an empty slot")
+	if tap_at < 0 and not held.is_empty():
+		var why := "the addon taps each bus that carries effects when the game starts, and this one had none then or the game has replaced its bus layout since"
+		@warning_ignore("unsafe_call_argument")
+		var tap_off := not bool(ProjectSettings.get_setting(AUDIO_TAP_SETTING, true))
+		if tap_off:
+			why = "no startup tap went in: %s is false" % AUDIO_TAP_SETTING
+		elif not _taps_installed:
+			why = "no startup tap went in: the bridge was created after the game's first frame"
+		elif _tap_skipped.has(bus_name):
+			why = "the addon left this bus alone when the game started, because %s; list BreakpointRuntimeBridge first among the autoloads so it is tapped before game code touches it" % _tap_skipped[bus_name]
+		return _err("bus_has_effects", "The %s bus carries %d effect(s): %s, and no switched-off capture tap (%s). Adding a capture effect makes Godot rebuild every effect on the bus, which restarts reverb and delay tails, stops an AudioEffectRecord that is recording, and detaches any effect instance the game holds." % [bus_name, held.size(), ", ".join(held), why])
 	@warning_ignore("unsafe_call_argument")
 	var seconds := clampf(float(params.get("seconds", 3.0)), 0.1, 10.0)
 	var rate := AudioServer.get_mix_rate()
 	var want := roundi(seconds * rate)
-	var cap := AudioEffectCapture.new()
-	# Drained every frame; two seconds (rounded up to a power of two of frames) rides out a hitch.
-	cap.buffer_length = 2.0
+	var transient := tap_at < 0
+	# 341's review arm: keyed by name alone, a bus renamed mid-capture let a second capture share the tap.
+	if not transient and _capturing.has(AudioServer.get_bus_effect(bus, tap_at)):
+		return _err("bus_busy", "A capture is already listening on the %s bus." % bus_name)
+	var cap: AudioEffectCapture
+	# Effects the game added after the tap run after the capture point: switched on, they are not heard.
+	var after := PackedStringArray()
+	var discarded_before := 0
 	_capturing[bus_name] = true
-	AudioServer.add_bus_effect(bus, cap)
+	if transient:
+		cap = AudioEffectCapture.new()
+		# Drained every frame; two seconds (rounded up to a power of two of frames) rides out a hitch.
+		cap.buffer_length = 2.0
+		AudioServer.add_bus_effect(bus, cap)
+	else:
+		cap = AudioServer.get_bus_effect(bus, tap_at) as AudioEffectCapture
+		for i: int in range(tap_at + 1, AudioServer.get_bus_effect_count(bus)):
+			if AudioServer.is_bus_effect_enabled(bus, i):
+				var fx := AudioServer.get_bus_effect(bus, i)
+				after.append(fx.get_class() if fx != null else "an empty slot")
+		# Off, nothing writes the buffer, so emptying it here cannot race the mixer.
+		cap.clear_buffer()
+		discarded_before = cap.get_discarded_frames()
+		_capturing[cap] = true
+		AudioServer.set_bus_effect_enabled(bus, tap_at, true)
 	var started := Time.get_ticks_msec()
 	var deadline := started + int(seconds * 1000.0) + 5000
 	var got := PackedVector2Array()
 	var tree := get_tree()
+	# 341's review arm: a game that replaces its bus layout takes the capture off with it, and the
+	# loop then waited out the grace for samples that could not come. It stops, and says so.
+	var lost := false
 	while got.size() < want and Time.get_ticks_msec() < deadline:
 		await tree.process_frame
 		var n := cap.get_frames_available()
 		if n > 0:
 			got.append_array(cap.get_buffer(n))
-	var discarded := cap.get_discarded_frames()
+		if got.size() < want and _effect_bus(cap) < 0:
+			lost = true
+			break
+	var discarded := cap.get_discarded_frames() - discarded_before
 	# Found again by identity on every bus: the game may have renamed or reordered them meanwhile.
-	var at := -1
-	for b: int in AudioServer.bus_count:
-		for i: int in range(AudioServer.get_bus_effect_count(b) - 1, -1, -1):
-			if AudioServer.get_bus_effect(b, i) == cap:
-				AudioServer.remove_bus_effect(b, i)
-				at = b
+	# The tap is switched off and stays; a capture of our own is taken off.
+	var at := _effect_bus(cap)
+	if at >= 0:
+		for i: int in range(AudioServer.get_bus_effect_count(at) - 1, -1, -1):
+			if AudioServer.get_bus_effect(at, i) == cap:
+				if transient:
+					AudioServer.remove_bus_effect(at, i)
+				else:
+					AudioServer.set_bus_effect_enabled(at, i, false)
 	_capturing.erase(bus_name)
+	_capturing.erase(cap)
 	if got.is_empty():
 		return _err("no_audio", "The %s bus delivered no samples in %.1f s: the game's audio is not being mixed." % [bus_name, (Time.get_ticks_msec() - started) / 1000.0])
 	if got.size() > want:
@@ -1980,7 +2133,20 @@ func _audio_capture(params: Dictionary) -> Dictionary:
 		"soloed": soloed,
 		"discarded_frames": discarded,
 		"wall_ms": Time.get_ticks_msec() - started,
+		"tap": not transient,
+		"after_tap": PackedStringArray() if lost else after,
+		"lost_capture": lost,
 	})
+
+
+## The bus that carries `fx` now, or -1: found by identity, since the game may rename, reorder or
+## replace its buses while a capture listens.
+func _effect_bus(fx: AudioEffect) -> int:
+	for b: int in AudioServer.bus_count:
+		for i: int in AudioServer.get_bus_effect_count(b):
+			if AudioServer.get_bus_effect(b, i) == fx:
+				return b
+	return -1
 
 
 func _time_scale(params: Dictionary) -> Dictionary:

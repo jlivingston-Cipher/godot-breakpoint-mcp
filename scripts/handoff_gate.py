@@ -10595,6 +10595,57 @@ BLOCK_POPULATION: "list[tuple[int, str]]" = [
 >               · error-code discipline 68 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
 > ```
 """),
+    # 🆕 341 — REGISTERED IN THE FIRST PR, FROM A DOCUMENT 340 DID NOT WRITE, AS AT 327 THROUGH 340.
+    # `HANDOFF_SESSION340.md` was drafted at 341 by `--emit-handoff 340 ../HANDOFF_SESSION339.md
+    # --measured ci340/` in a worktree AT 82f1208 (341's edits never in it, nothing stashed) and the
+    # artifacts of #446's post-merge `ci` run 43141371770, every leg on its FIRST attempt (the run
+    # reads `attempt 1`); post-merge `integration` 43141371819 20/20, first attempt.
+    # MOVED +1 is 37fa072..82f1208 (#446's squash, which carried 339's block and the read of
+    # NPGameDev's npm server in one tree). `untagged 4` because none of #443, #444, #445 or #446 is
+    # a cut and nothing was tagged after `v1.94.0` (61495e4); `unshipped 0` because `git diff
+    # v1.94.0 82f1208 -- host/src host/package.json addons` is empty and the registry's `latest` is
+    # 1.94.0, read at 341. Three counters read by hand from those artifacts, as at 323 and 326
+    # through 340: 27 CI jobs (ci 7 + integration 20, every job success), `0 exempt`
+    # (BOUNDARY_GATE_DISCOVER, INSTRUMENT_GATE_DISCOVER), `exempt 43` (FLOOR_PIN_REASON); all three
+    # agree with the draft on every leg, and `1057/1057` is each leg's own `# pass`. The commit
+    # subject on the `main` row drops its two ledger IDs and "339's status block": MOVED_POPULATION
+    # reads every numeral in that atom (git holds the full subject).
+    #
+    # 🔵 THE `host / addon` ROW SAYS `UNMOVED`, BECAUSE NOTHING USERS INSTALL MOVED: #446 touched
+    # scripts/, the landscape roster and QUEUE.md only, so the pair stays 1.94.0 / 1.23.0, which is
+    # `SENSE_ASKS["UNMOVED"]`. Precedent: 285, 332, 337, 338, 339.
+    #
+    # 🟢 THE ASSET LIBRARY ROW IS LIVE, AS AT 339. Asset 5335 answers 1.23.0 (modified
+    # 2026-11-07 20:47Z, read at 341). The npm row was read before this session's PR opened: 0 open
+    # issues, 0 open PRs. `QUEUE_HEAD` moves 340 -> 341, the session that registers it; 341
+    # commits, so no `BLOCK_ABSENT`.
+    (340, """> ```
+> main                 82f1208 — session340 the other half of godot-mcp-toolkit read at source (#446)  MOVED +1
+> branch 340           session340 · PR #446
+> host / addon         1.94.0 / 1.23.0  🟢 UNMOVED — no cut; nothing users install changed
+> npm                  🟢 registry 1.94.0 · untagged 4 · unshipped 0 ·
+>                      0 open issues / 0 open PRs
+> assetlib             🟢 addon 1.23.0 live
+> 🟢 VERIFIED AFTER THE CHANGE   1057/1057 · contract 32/32 · scope 75 · control 83
+>               · 27 CI jobs · instrument ok across 24 · LATE_LIVE 22/8 · 0 crashes
+>               · blast 3617 · late not-loaded 0 · late constructed 368/160 · py gates 18/6/12
+>               · SIG 303/105 · discover 59/16/16/30 · 0 exempt · 0 undeclared · floor_pin 116
+>               · 56 governed · 2576 keys · 100 shortfalls
+>               · target reasons 116 bound / 0 unreasoned / ceiling 0 · unswept 0 · exempt 43
+>               · term 339 file(s) / 21 suffixes · seal 117
+>               · boundary 193 judged / DISCOVER 9-2-0
+>               · wire_diff_key 298 tools / 3937 nodes / 20 keys / 0 problems
+>               · wire_invisible 35 cases · lint_ceiling 18 py · taut 5516
+>               · duration 4 sites / 2 lower / 2 guarded · orphan 27/27
+>               · difference_field 28 population / 5 unreachable / 5 declared
+>               · mutlock 5 guarded / 23 cases · tree_quiet 13 · queue 84/84 claims
+>               · handoff 695 claims · landscape 4 channel(s) / 58 analysed / 91 surfaced
+>               · capability 106 claimed / 0 unread / 10 uncited
+>               · cadence 8 within / 36 past / 14 never analysed
+>               · identity 72 of 149 / 2 renamed / 0 collisions
+>               · error-code discipline 68 reads / 31 raise sites / 12 host-origin vs 68 addon / 0 problems
+> ```
+"""),
 ]
 # ── 🆕 244 §2 — `population-reach-floor` (OPEN 239) — HOW FAR BACK, NOT HOW WIDE ──────
 #
