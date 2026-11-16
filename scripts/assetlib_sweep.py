@@ -280,12 +280,22 @@ CAPABILITY_FIELDS = ("real_dap_client", "real_lsp_client", "csharp", "debugger")
 # ANSWER and is deliberately still legal: the two `source_verifiable: false` rows carry
 # nulls because no reading is POSSIBLE there — a closed-source product sold from its own
 # site — and `unread` would say a session merely has not got to it yet.
+#
+# 🆕 344 (BP-0021) — WHAT EACH VALUE SAYS IS WRITTEN IN docs/LANDSCAPE_TRACKING_POLICY.md,
+# RULE 6, AND TWO VALUES JOINED BY RULING ON 2026-11-16. `compiler-checked` is the C# value
+# a row reaches only on evidence naming the compiler call, so `True` keeps meaning real C#
+# work and stops standing in for a build it may never run. `output-capture-only` is the
+# debugger value for a product that reads what the running game prints and cannot stop it,
+# which `none` used to say as if it were nothing. Neither value narrows an old one: `True`
+# makes no claim that a product never builds, and `none` makes no claim that it never reads
+# output, because an absence owes the whole tree and those readings did not look.
 CAPABILITY_VALUES: "dict[str, tuple]" = {
     "real_dap_client": (True, False),
     "real_lsp_client": (True, False),
-    "csharp": (True, False, "spike-only"),
-    "debugger": ("none", "godot-internal-editor-debugger", "real-dap-client",
-                 "dap-client-output-only", "screen-scrapes-stack-trace-panel"),
+    "csharp": (True, False, "spike-only", "compiler-checked"),
+    "debugger": ("none", "output-capture-only", "godot-internal-editor-debugger",
+                 "real-dap-client", "dap-client-output-only",
+                 "screen-scrapes-stack-trace-panel"),
 }
 
 # 🔵 A CITATION IS SOMETHING A LATER READER CAN GO AND LOOK AT WITHOUT REDOING THE
