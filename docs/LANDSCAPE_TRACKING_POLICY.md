@@ -510,6 +510,48 @@ on purpose: 293 withdrew unevidenced `true`s alongside unevidenced `false`s, bec
 control that only doubted negatives would be the same one-sided reading with the sign
 flipped.
 
+### 🆕 344 — What each value says, and which path `debugger` describes
+
+Until 344 the vocabulary was declared in `scripts/assetlib_sweep.py` and defined nowhere, so
+three readings at 323 and one at 340 reached a case the words could not carry and wrote
+*flagged for ruling* into a note instead of a value. Four rulings made on 2026-11-16 settle
+them. This section is where a value's meaning lives; the census is still what refuses a
+value outside the list.
+
+**`debugger` describes the path a default install gets.** A product with two debug paths
+records the one a user gets with no settings changed, and the other goes in the note.
+`real_dap_client`, `real_lsp_client` and `csharp` keep their own question, which is whether
+the product can do the thing at all, however it is switched on. *The most capable path wins*
+was considered and declined, because capability does not order: the first product to raise
+the question can step with one of its paths and can read variables only with the other.
+
+| `debugger` | means |
+|---|---|
+| `none` | no debug path was found. It does not say the product never reads the game's output; a row moves to `output-capture-only` when a reading shows that it does |
+| `output-capture-only` | reads what the running game prints or reports (console text, errors, error backtraces) and cannot pause it, step it or set a breakpoint |
+| `dap-client-output-only` | opens a Debug Adapter Protocol connection and uses it only to receive output |
+| `screen-scrapes-stack-trace-panel` | reads the editor's Debugger dock as on-screen text, with none of the debugger's own data |
+| `godot-internal-editor-debugger` | drives Godot's editor debugger from inside the editor: an `EditorDebuggerPlugin`, its sessions, or its controls |
+| `real-dap-client` | speaks the Debug Adapter Protocol to Godot's debug server itself |
+
+| `csharp` | means |
+|---|---|
+| `false` | no work with C# was found |
+| `spike-only` | C# is named (an accepted extension, a workflow) with no working path behind it |
+| `true` | real work with C# source (reading, writing, indexing, loading or validating it), where the reading did not show the C# compiler being run. It does not say the product never builds; a row moves to `compiler-checked` when a reading names the call |
+| `compiler-checked` | runs the C# compiler on the user's project: `dotnet build`, MSBuild, or Roslyn's diagnostics |
+
+Neither table is a ranking. Both new values are positive statements a row reaches on
+evidence that names what was found, and neither narrows an older value: an absence owes the
+whole tree, and the readings behind the older values did not look for it.
+
+**One product, more than one repository.** Every field describes one repository's tree,
+because that is what one source reading can vouch for. When users install two repositories
+together as one product, both rows carry `same_product_as`, a list of the other halves'
+`owner/name` slugs, so a reader of either row learns the other half exists before drawing a
+product-level conclusion from one tree's fields. It is a list from the start because
+`former_repo` began as a string and one string was not enough.
+
 ---
 
 ## What a sweep produces
