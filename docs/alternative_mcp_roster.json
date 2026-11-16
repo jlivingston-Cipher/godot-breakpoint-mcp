@@ -2013,7 +2013,7 @@
     },
     {
       "name": "godot-mcp-community-edition",
-      "repo": "Unsigned-Exe/Godot-MCP-Community-Edition",
+      "repo": null,
       "asset_id": 5544,
       "channel": "assetlib",
       "assetlib_title": "Godot-MCP Community Edition",
@@ -2030,10 +2030,10 @@
       "csharp": false,
       "protocol_revision": "2024-11-05",
       "cadence": "unknown",
-      "status": "active",
+      "status": "dormant",
       "first_seen": 327,
       "mcp_registry_name": null,
-      "note": "🟢 SOURCE PASS 327 (BP-0038), at c69d3db (2026-10-28, v1.0.3; the card serves e96ed71, v1.0.0.1). First surfaced as NEW/MCP on sdk-drift #33. SHAPE: a Godot editor addon (addons/godot_mcp) that connects OUT as a WebSocket client to a Windows-only C# hub (src/GodotMCP.csproj: WinExe, net8.0-windows, WPF), which listens on 127.0.0.1:6505 (src/GodotBridge.cs:45) and speaks MCP over stdio (src/GodotMcpServer.cs:12, :33), declaring protocolVersion 2024-11-05 (src/GodotMcpServer.cs:95). 25 tools by the hub's own list (src/GodotMcpBridge.cs:246-270), but the last, godot_call_editor_command, *calls an arbitrary godot_mcp plugin command*, so the reachable surface is the addon's command router, not the 25. Optional shared-token auth (addons/godot_mcp/websocket_server.gd:27-30, setting godot_mcp/require_connection_token). Three runtime autoloads (plugin.gd:5-7) talk to the editor through user:// request/response FILES, not a port, and disable themselves unless OS.has_feature(\"editor\") (mcp_game_inspector_service.gd:59). 🔵 LINEAGE, MEASURED: all 36 .gd paths in addons/godot_mcp match godot-mcp-pro's addon (youichi-uda/godot-mcp-pro at 0f0274e, asset 4961) path for path; websocket_server.gd 0.982 and mcp_game_inspector_service.gd 0.969 line-similarity, base_command.gd 0.64; websocket_server.gd:29 keeps the setting name godot_mcp_pro/require_connection_token as a legacy key. Both repositories are MIT. The debugger ruling therefore matches 4961's, by the same code.",
+      "note": "🔴 343 (BP-0088): THE REPOSITORY IS GONE, AND THAT IS THE WORLD, NOT A DEFECT IN THE SWEEP. `Unsigned-Exe/Godot-MCP-Community-Edition` answered 404 to the source leg on sdk-drift 43899332331 (2026-11-16), which made it read `partial`. Read 2026-11-16 from the Mac: the repository answers 404 and the owner account `Unsigned-Exe` exists with 0 public repositories; the Asset Library card is unchanged (1.0.0.1, modified 2026-10-25) and still names it as browse_url, and its download archive (commit e96ed71) answers 404, so the card can no longer install anything. As with godot-agent-loop at 327: `repo` is null because there is no source left to read, the old slug is kept in `former_repo`, and `status` is `dormant`. The ruling and `last_analysed_commit` c69d3db are UNMOVED: they describe the last tree anyone could read. The card leg still reads asset 5544 every run, so a new card is still seen.  🟢 SOURCE PASS 327 (BP-0038), at c69d3db (2026-10-28, v1.0.3; the card serves e96ed71, v1.0.0.1). First surfaced as NEW/MCP on sdk-drift #33. SHAPE: a Godot editor addon (addons/godot_mcp) that connects OUT as a WebSocket client to a Windows-only C# hub (src/GodotMCP.csproj: WinExe, net8.0-windows, WPF), which listens on 127.0.0.1:6505 (src/GodotBridge.cs:45) and speaks MCP over stdio (src/GodotMcpServer.cs:12, :33), declaring protocolVersion 2024-11-05 (src/GodotMcpServer.cs:95). 25 tools by the hub's own list (src/GodotMcpBridge.cs:246-270), but the last, godot_call_editor_command, *calls an arbitrary godot_mcp plugin command*, so the reachable surface is the addon's command router, not the 25. Optional shared-token auth (addons/godot_mcp/websocket_server.gd:27-30, setting godot_mcp/require_connection_token). Three runtime autoloads (plugin.gd:5-7) talk to the editor through user:// request/response FILES, not a port, and disable themselves unless OS.has_feature(\"editor\") (mcp_game_inspector_service.gd:59). 🔵 LINEAGE, MEASURED: all 36 .gd paths in addons/godot_mcp match godot-mcp-pro's addon (youichi-uda/godot-mcp-pro at 0f0274e, asset 4961) path for path; websocket_server.gd 0.982 and mcp_game_inspector_service.gd 0.969 line-similarity, base_command.gd 0.64; websocket_server.gd:29 keeps the setting name godot_mcp_pro/require_connection_token as a legacy key. Both repositories are MIT. The debugger ruling therefore matches 4961's, by the same code.",
       "capability_evidence": {
         "debugger": "addons/godot_mcp/commands/base_command.gd:453 _find_script_editor_debugger() walks from the editor base control for get_class()=='ScriptEditorDebugger' (:460); :480 _find_debugger_continue_button matches the 'DebugContinue' editor icon (:484); :541 try_debugger_continue() presses it (:544 emit_signal(\"pressed\")); :509 collect_debugger_errors reads the Errors tab - the editor's own debugger UI driven from the plugin, read at c69d3db",
         "real_dap_client": "zero hits at c69d3db across addons/ and src/ for 6006, DebugAdapter, setBreakpoints, stackTrace or \"dap\"; the only transports are the addon's WebSocket to the hub (127.0.0.1:6505, src/GodotBridge.cs:45) and the hub's stdio",
@@ -2055,6 +2055,9 @@
         "README.md",
         "SHA256SUMS.txt",
         "app.ico"
+      ],
+      "former_repo": [
+        "Unsigned-Exe/Godot-MCP-Community-Edition"
       ]
     }
   ],
@@ -3138,6 +3141,32 @@
       "ranked_on": "2026-09-21"
     },
     {
+      "key": "pevalcar/godot-docs-mcp",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 343,
+      "repo": "Pevalcar/godot-docs-mcp",
+      "npm": "godot-docs-mcp",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2026-11-15",
+      "description": "MCP Server for Godot Engine documentation search - TypeScript implementation with BM25 full-text search"
+    },
+    {
+      "key": "player-three-gg/player-three",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 343,
+      "repo": "player-three-gg/player-three",
+      "npm": "@playerthree/sidecar",
+      "mcp_registry_name": null,
+      "version": "0.1.0",
+      "last_published": "2026-11-14",
+      "description": "PlayerThree sidecar host for non-JS game servers (Unity, Unreal, Godot, C++, C#, Go): the engine speaks newline-delimited JSON over stdio or a local socket, the sidecar serves MCP."
+    },
+    {
       "key": "projectmakersde/horizon-mcp",
       "channels": [
         "npm"
@@ -3386,6 +3415,19 @@
       "version": "3.2.0",
       "last_published": "2026-06-22",
       "description": "MCP plugin package for AI-assisted Godot Engine development workflows."
+    },
+    {
+      "key": "whitetowerai/ohmygame-plugins",
+      "channels": [
+        "npm"
+      ],
+      "first_seen": 343,
+      "repo": "WhiteTowerAI/ohmygame-plugins",
+      "npm": "@ohmygame/godot",
+      "mcp_registry_name": null,
+      "version": "1.0.1",
+      "last_published": "2026-11-15",
+      "description": "Make Godot games: a project type that plays in the game panel as a web build, tools and an MCP server to build scenes and run the game, and skills for scenes and scripts."
     },
     {
       "key": "windseries83/godot-mcp",
